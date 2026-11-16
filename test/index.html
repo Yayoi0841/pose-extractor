@@ -381,6 +381,8 @@
         <hr>
         <button data-act="keyGaps" id="mKeyGaps">✓ キー間のコマ数を表示</button>
         <button data-act="side" id="mSide">　2画面で並べる</button>
+        <hr>
+        <button data-act="poseList" id="mPoseList">　ポーズ一覧（右のパネル）</button>
       </div>
     </div>
     <span style="align-self:center;margin:0 6px;padding:1px 8px;border-radius:3px;background:#b8860b;color:#fff;font-size:11px" title="お試し用。データは本番版とは別に保存されます">テスト版</span><div class="menu" id="menuHelp"><button class="mi">ヘルプ</button>
@@ -596,7 +598,7 @@
 <li><b>探す</b>：<kbd>Space</kbd> 再生／<kbd>←</kbd><kbd>→</kbd> 1コマ</li>
 <li><b>登録</b>：<kbd>1</kbd> タメ／<kbd>2</kbd> ヒット</li>
 <li><b>次へ</b>：<kbd>N</kbd> 次のモーション</li>
-<li><b>書き出す</b>：右下「パワポ書き出し」</li>
+<li><b>書き出す</b>：「ファイル → パワポを書き出す」</li>
 </ol>
 <p class="tip">自動で保存されます。<kbd>?</kbd> でショートカット一覧。</p>
 </section>
@@ -607,14 +609,14 @@
   <div class="a1">① メニュー・ツール</div>
   <div class="a2">② 動画</div>
   <div class="a3">③ ビューポート</div>
-  <div class="a4">④ ポーズ／FB</div>
+  <div class="a4">④ FB</div>
   <div class="a5">⑤ タイムスライダー・再生</div>
 </div>
 <ul>
 <li>① ファイル・ヘルプ・ペンの設定</li>
 <li>② 動画の一覧（クリックで切り替え）</li>
 <li>③ 動画を見る・描く場所</li>
-<li>④ 登録したポーズ／メモ・レイヤー</li>
+<li>④ メモ・レイヤー（ポーズ一覧は「表示」から出せる）</li>
 <li>⑤ 再生・範囲・表示の切り替え</li>
 </ul>
 </section>
@@ -649,7 +651,8 @@
 <li><kbd>,</kbd><kbd>.</kbd> 前／次のキーへ</li>
 <li><kbd>1</kbd> タメ（橙）／<kbd>2</kbd> ヒット（緑）</li>
 <li><kbd>N</kbd> モーション追加／<kbd>↑</kbd><kbd>↓</kbd> 切り替え</li>
-<li><b>パワポ</b>：「日目」を入れて「パワポ書き出し」</li>
+<li><b>パワポ</b>：「ファイル → パワポを書き出す」（日目を聞かれます）</li>
+<li><b>登録の確認・やり直し</b>：「表示 → ポーズ一覧」</li>
 <li><b>Maya用</b>：「ファイル → Maya 用に書き出す」（フレーム一覧と 1-01.jpg など）</li>
 <li>タイムスライダーにキー間のコマ数（6f など）が出ます</li>
 </ul>
@@ -2751,7 +2754,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     notes: {}, tool: 'select',
     pen: { color: '#ff3b30', size: 6, opacity: 100, pressure: true, po: false, smooth: 40, hard: 100 }, eraser: { size: 30, hard: 100 },
     layers: [{ id: 'L1', name: 'レイヤー 1', vis: true, op: 100 }], layer: 'L1',
-    keys: {}, stepped: false, ghost: false, name: '', storeVideos: true, keepDays: 20, groups: [], top: [], follow: false, track: {}, followSm: 0.6, fb: null, fbPrev: false,
+    keys: {}, stepped: false, ghost: false, name: '', storeVideos: true, keepDays: 20, showPoses: false, groups: [], top: [], follow: false, track: {}, followSm: 0.6, fb: null, fbPrev: false,
     arcs: {}, meas: {}, guides: { center: false, thirds: false }, onion: { on: false, n: 2 }, keyGaps: true,   // groups=[{id,name,open}] / top=一覧の最上位の並び（'g:フォルダーID' または 動画ID）
     ov: { on: false, id: null, op: 50, mode: 'normal', off: 0 }, flip: false,   // keys[動画ID] = [フレーム…]
   };
@@ -2810,7 +2813,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const keys = Object.values(d.keys || {}).reduce((n, a) => n + a.length, 0);
     return { id, name: d.name || '', savedAt: d.savedAt || new Date().toISOString(), names: (d.videos || []).map(v => v.name), poses, fb, keys, day: d.day || 1 };
   }
-  const prefs = () => ({ pen: S.pen, eraser: S.eraser, stepped: S.stepped, ghost: S.ghost, storeVideos: S.storeVideos, keepDays: S.keepDays, seenGuide: S.seenGuide });
+  const prefs = () => ({ pen: S.pen, eraser: S.eraser, stepped: S.stepped, ghost: S.ghost, storeVideos: S.storeVideos, keepDays: S.keepDays, seenGuide: S.seenGuide, showPoses: S.showPoses });
   // ---- ポーズ画像は別に1回だけ保存し、作業データ（毎回の自動保存）には参照だけを入れる ----
   // ブラウザは 64KB を超えるデータを毎回別ファイルにするため、画像を分けて自動保存のたびのファイル作成を減らす
   const imgKeyOf = new Map(), imgStored = new Set();
@@ -3174,7 +3177,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
         await tx('readwrite', st => { st.put(old, 'sess:' + id); st.put(recentIdx, 'index'); st.delete('state'); });
         if (!pf && old.pen) { Object.assign(S.pen, old.pen); Object.assign(S.eraser, old.eraser || {}); }
       }
-      if (pf) { Object.assign(S.pen, pf.pen || {}); Object.assign(S.eraser, pf.eraser || {}); S.stepped = !!pf.stepped; S.ghost = !!pf.ghost; if ('storeVideos' in pf) S.storeVideos = !!pf.storeVideos; if (Number.isFinite(pf.keepDays)) S.keepDays = pf.keepDays; S.seenGuide = !!pf.seenGuide; }
+      if (pf) { Object.assign(S.pen, pf.pen || {}); Object.assign(S.eraser, pf.eraser || {}); S.stepped = !!pf.stepped; S.ghost = !!pf.ghost; if ('storeVideos' in pf) S.storeVideos = !!pf.storeVideos; if (Number.isFinite(pf.keepDays)) S.keepDays = pf.keepDays; S.seenGuide = !!pf.seenGuide; if ('showPoses' in pf) S.showPoses = !!pf.showPoses; } applyPoseVis();
       syncPenUI(); syncToggles(); syncStoreMenu();
       const sid = ssGet(), d = sid && recentIdx.some(r => r.id === sid) ? await unpackSnap(await tx('readonly', st => st.get('sess:' + sid))) : null;
       loaded = true;
@@ -4767,11 +4770,21 @@ If you want to offset all timestamps of a track such that the first one is zero,
 
   // ================= 右パネルのタブ =================
   function setTab(t) {
+    if (t === 'pose' && !S.showPoses) t = 'fb';   // ポーズ一覧を隠しているときは FB を出す
     $$('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
     $('#panePose').classList.toggle('hidden', t !== 'pose');
     $('#paneFb').classList.toggle('hidden', t !== 'fb');
   }
   $$('.tab').forEach(b => b.onclick = () => setTab(b.dataset.tab));
+  function applyPoseVis() {
+    $('[data-tab="pose"]').classList.toggle('hidden', !S.showPoses);
+    setTab(S.showPoses && !$('#panePose').classList.contains('hidden') ? 'pose' : S.showPoses ? 'pose' : 'fb');
+    if (typeof syncViewMenu === 'function') syncViewMenu();
+  }
+  function togglePoseList() {
+    S.showPoses = !S.showPoses; applyPoseVis(); save();
+    say(S.showPoses ? 'ポーズ一覧を表示しました（右のパネル）' : 'ポーズ一覧を隠しました。1・2 での登録とパワポ書き出しはそのまま使えます（表示メニューで戻せます）');
+  }
 
   // ================= 画面レイアウト =================
   const app = $('#app');
@@ -4823,6 +4836,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     onionN: () => setOnionN(),
     keyGaps: () => { S.keyGaps = !S.keyGaps; syncViewMenu(); drawTS(); save(); },
     side: () => toggleSide(),
+    poseList: () => togglePoseList(),
     storage: () => showStorage().catch(e => say('確認できませんでした：' + (e?.message || e))),
     library: () => { $('#libPop').dataset.anchor = 'menu'; openLib($('#menuFile')); },
     exportFrame: () => exportFrame().catch(err => say('画像を保存できませんでした：' + err.message)),
@@ -5367,6 +5381,13 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (!ms.some(m => m.tame || m.hit)) { say('登録されたポーズがありません'); return; }
     const missing = ms.flatMap((m, i) => [!m.tame && `${i + 1}-01`, !m.hit && `${i + 1}-02`]).filter(Boolean);
     if (missing.length && !(await ask(`未登録があります：${missing.join(', ')}\nこのまま書き出しますか？`, '書き出し'))) return;
+    if (!S.showPoses) {   // 一覧を隠しているときは、ここで「何日目か」を聞く
+      const inp = document.createElement('input'); inp.type = 'number'; inp.min = 1; inp.value = S.day; inp.style.cssText = 'width:60px;margin-top:8px';
+      const q = ask(`パワポを書き出します（モーション ${ms.length}個）。\n何日目ですか？`, 'パワポ書き出し');
+      const lb = document.createElement('label'); lb.append(inp, ' 日目'); $('#modalText').append(document.createElement('br'), lb); inp.select();
+      if (!(await q)) return;
+      S.day = Math.max(1, parseInt(inp.value) || 1); $('#day').value = S.day; save();
+    }
     const day = Math.max(1, parseInt($('#day').value) || 1);
     const pptx = new PptxGenJS();
     pptx.layout = 'LAYOUT_WIDE';
@@ -5588,6 +5609,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     $('#mOnion').firstChild.nodeValue = ck(S.onion.on) + `オニオンスキン（前後${S.onion.n}コマ）`;
     $('#mKeyGaps').firstChild.nodeValue = ck(S.keyGaps) + 'キー間のコマ数を表示';
     $('#mSide').firstChild.nodeValue = ck(S.ov.on && S.ov.mode === 'side') + '2画面で並べる';
+    $('#mPoseList').firstChild.nodeValue = ck(S.showPoses) + 'ポーズ一覧（右のパネル）';
   }
   function toggleOnion() {
     S.onion.on = !S.onion.on; syncViewMenu(); ghostRefresh(); save();
@@ -5716,7 +5738,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
 
   // ================= 起動 =================
   if (!S.fb) initRounds({ notes: S.notes });
-  syncViewMenu();
+  syncViewMenu(); applyPoseVis();
   window.__pe = { S, frame, selSt: () => selSt(), corners: (s) => corners(s), pics };   // 動作確認用（中身の参照のみ）
   setFpsSelect(30); applyLayout(); syncToggles(); applyFlip(); setTool('select'); say('動画を追加してください（複数まとめて読み込めます）');
   renderVideos(); render(); renderFB(); renderLayers(); syncUI();
