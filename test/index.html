@@ -184,7 +184,7 @@
   .tsctl .tg { height: 22px; padding: 0 6px; font-size: 11px; color: var(--sub); }
   .tsctl .tg.on { background: var(--hl); color: #fff; }
   #followSm { height: 22px; font-size: 11px; margin-left: 2px; }
-  body.fbHidden #draw, body.fbHidden #memoOv { opacity: 0; }
+  body.penHidden #draw, body.memoHidden #memoOv { opacity: 0; }
   #memoOv { position: absolute; left: 10px; bottom: 10px; max-width: 55%; background: rgba(30,30,30,.78); border-left: 3px solid var(--memo); color: #f2f2f2; padding: 6px 10px; white-space: pre-wrap; line-height: 1.5; pointer-events: none; z-index: 5; font-size: 13px; }
   #drop { position: absolute; inset: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #ddd; border: 1px dashed #888; text-align: center; z-index: 5; }
   #viewport.dragover #drop { display: flex !important; border-color: var(--hl); background: rgba(82,133,166,.3); }
@@ -525,7 +525,8 @@
         <button class="tg" id="tgFlip" title="左右反転して表示（鏡で見る）  Shift+H">反転</button>
         <button class="tg" id="tgFollow" title="追従：拡大中もキャラを画面の真ん中に追いかける  T
 初回はキャラをドラッグで囲む（Shift+T で選び直し）。Space＋ドラッグで画面内の位置をずらせます">追従</button><select id="followSm" class="hidden" title="追従のなめらかさ：強いほどカメラがゆったり動いて揺れにくい（速い動きには少し遅れます）"><option value="0.1">揺れ止め 弱</option><option value="0.3">揺れ止め 中</option><option value="0.6">揺れ止め 強</option></select>
-        <button class="tg" id="tgHide" title="ペン・貼り付けた画像・メモの表示を一時的に隠す（消えません）  H">FBを隠す</button>
+        <button class="tg" id="tgHide" title="ペンの線・貼り付けた画像を一時的に隠す（消えません）  H">ペンを隠す</button>
+        <button class="tg" id="tgMemoHide" title="画面上のメモを一時的に隠す（消えません）  Shift+M">メモを隠す</button>
         <button class="tg" id="tgGhost" title="ゴースト：前のキー（赤）と次のキー（緑）を半透明で重ねる  G">ゴースト</button>
       </div>
       <span class="sep"></span>
@@ -657,7 +658,8 @@
 <li><b>重ねる</b>：ほかの動画を透かして重ねます。透明度・ずらし（コマ数）・差分表示・入れ替えができます。</li>
 <li><b>反転</b>（<kbd>Shift</kbd>+<kbd>H</kbd>）：左右反転して表示します（鏡でチェック）。</li>
 <li><b>追従</b>（<kbd>T</kbd>）：拡大していても、キャラを画面の真ん中に追いかけます。初回は追いかけたいキャラをドラッグで囲みます。対象を変えるのは<kbd>Shift</kbd>+<kbd>T</kbd>。<kbd>Space</kbd>＋ドラッグで画面内の位置をずらせます。横の「揺れ止め」で、カメラの落ち着き具合（弱・中・強）を選べます。</li>
-<li><b>FBを隠す</b>（<kbd>H</kbd>）：ペン・貼った画像・メモを一時的に隠します（消えません）。</li>
+<li><b>ペンを隠す</b>（<kbd>H</kbd>）：ペンの線と貼った画像を一時的に隠します（消えません）。</li>
+<li><b>メモを隠す</b>（<kbd>Shift</kbd>+<kbd>M</kbd>）：画面上のメモを一時的に隠します（消えません）。ペンとは別々に切り替えられます。</li>
 <li><b>ゴースト</b>（<kbd>G</kbd>）：前のキー（赤）と次のキー（緑）の絵を半透明で重ねます。</li>
 </ul>
 <h3>集中モード</h3>
@@ -767,7 +769,8 @@
     <tr><td><kbd>K</kbd>＋ドラッグ</td><td>ビューポートでスクラブ（ペン中も可）</td></tr>
     <tr class="h"><td colspan="2">ペン（Photoshop）</td></tr>
     <tr><td><kbd>B</kbd> / <kbd>E</kbd> / <kbd>V</kbd></td><td>ペン／消しゴム／選択（描かない）</td></tr>
-    <tr><td><kbd>H</kbd></td><td>FB（ペン・画像・メモ）を隠す／表示（消えません）</td></tr>
+    <tr><td><kbd>H</kbd></td><td>ペン（線・貼った画像）を隠す／表示（消えません）</td></tr>
+    <tr><td><kbd>Shift</kbd>+<kbd>M</kbd></td><td>画面上のメモを隠す／表示（消えません）</td></tr>
     <tr><td><kbd>T</kbd> / <kbd>Shift</kbd>+<kbd>T</kbd></td><td>追従のオン／オフ（拡大中もキャラを中央に追いかける）／追いかける対象を選び直す</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>コピーした画像を今のフレームに貼り付け（画像をビューポートにドロップでも可）</td></tr>
     <tr><td>選択（<kbd>V</kbd>）で画像をドラッグ</td><td>移動。角をドラッグで拡大縮小（<kbd>Shift</kbd>で縦横比を変える）、<kbd>Delete</kbd>で削除、<kbd>Ctrl</kbd>+<kbd>Z</kbd>で戻す</td></tr>
@@ -4113,12 +4116,17 @@ If you want to offset all timestamps of a track such that the first one is zero,
     return st;
   }
   let sm = null;   // 手ブレ補正（遅れて追従する点）
-  let penSeen = false, fbHidden = false;
+  let penSeen = false, fbHidden = false, memoHidden = false;   // fbHidden＝ペン（線・貼った画像）を隠しているか
   function toggleHide(v = !fbHidden) {
-    fbHidden = v; document.body.classList.toggle('fbHidden', v); $('#tgHide').classList.toggle('on', v);
-    say(v ? 'FBを隠しました（H でもう一度表示。消えてはいません）' : 'FBを表示しました');
+    fbHidden = v; document.body.classList.toggle('penHidden', v); $('#tgHide').classList.toggle('on', v);
+    say(v ? 'ペンを隠しました（H でもう一度表示。消えてはいません）' : 'ペンを表示しました');
+  }
+  function toggleMemoHide(v = !memoHidden) {
+    memoHidden = v; document.body.classList.toggle('memoHidden', v); $('#tgMemoHide').classList.toggle('on', v);
+    say(v ? 'メモを隠しました（Shift+M でもう一度表示。消えてはいません）' : 'メモを表示しました');
   }
   $('#tgHide').onclick = () => toggleHide();
+  $('#tgMemoHide').onclick = () => toggleMemoHide();
   draw.addEventListener('pointerdown', e => {
     if (kDown || spaceDown || !has() || S.tool === 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault(); e.stopPropagation();
@@ -5218,6 +5226,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     else if (k === 'b') setTool('pen');
     else if (k === 'e') setTool('eraser');
     else if (k === 'v') setTool('select');
+    else if (k === 'm' && e.shiftKey) { e.preventDefault(); toggleMemoHide(); }
     else if (k === 'm') { e.preventDefault(); focusMemo(); }
     else if (k === 's') setKey();
     else if (k === 'delete' || k === 'backspace') { e.preventDefault(); if (selSt()) deletePic(); else deleteKey(); }
