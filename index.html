@@ -157,6 +157,12 @@
   body.zoomed #viewport video { image-rendering: pixelated; }
   #draw { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; pointer-events: none; }
   #viewport.panning, #viewport.panning #draw { cursor: grab !important; }
+  #anno { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; }
+  body.measuring #anno { pointer-events: auto; cursor: crosshair; }
+  #viewport.side #video { right: auto; width: 50%; }
+  #viewport.side #ovid { left: 50%; right: auto; width: 50%; }
+  .arcSw { width: 16px; height: 16px; min-width: 0; padding: 0; border-radius: 50%; border: 1px solid #222; }
+  #shelf .hint { color: var(--sub); font-size: 11px; }
   #viewport.zin, #viewport.zin * { cursor: zoom-in !important; } #viewport.zout, #viewport.zout * { cursor: zoom-out !important; }
   #viewport.panning.grabbing, #viewport.panning.grabbing #draw { cursor: grabbing !important; }
   #vpZoom { position: absolute; right: 8px; bottom: 8px; z-index: 5; display: flex; gap: 2px; align-items: center; background: rgba(30,30,30,.7); border-radius: 2px; padding: 1px 2px; font-variant-numeric: tabular-nums; }
@@ -357,11 +363,24 @@
         <hr>
         <button data-act="exportPptx">パワポを書き出す (.pptx)</button>
         <button data-act="exportFrame">今のフレームを画像で保存 (.png)<span>Ctrl+Shift+S</span></button>
+        <button data-act="exportMaya">Maya 用に書き出す（フレーム一覧・ポーズ画像）…</button>
         <hr>
         <button data-act="storeVideos" id="mStore">✓ 動画もこのPCのブラウザに保存</button>
         <button data-act="keepDays" id="mKeep">動画を残す日数…</button>
         <button data-act="storage">保存しているデータを確認…</button>
         <button data-act="clearAll">この作業を削除…</button>
+      </div>
+    </div>
+    <div class="menu" id="menuView"><button class="mi">表示</button>
+      <div class="dropdown">
+        <button data-act="gCenter" id="mGCenter">　補助線：中心線</button>
+        <button data-act="gThirds" id="mGThirds">　補助線：三分割</button>
+        <hr>
+        <button data-act="onion" id="mOnion">　オニオンスキン<span>O</span></button>
+        <button data-act="onionN">オニオンスキンの枚数…</button>
+        <hr>
+        <button data-act="keyGaps" id="mKeyGaps">✓ キー間のコマ数を表示</button>
+        <button data-act="side" id="mSide">　2画面で並べる</button>
       </div>
     </div>
     <div class="menu" id="menuHelp"><button class="mi">ヘルプ</button>
@@ -387,6 +406,8 @@
       <button class="tool on" data-tool="select" title="選択（ペンを使わない） V">➤</button>
       <button class="tool" data-tool="pen" title="ペン B">✎</button>
       <button class="tool" data-tool="eraser" title="消しゴム E">⌫</button>
+      <button class="tool" data-tool="arc" title="軌道：追いたい部位をコマごとにクリック  A">〰</button>
+      <button class="tool" data-tool="angle" title="角度：ドラッグで線を引いて傾きを測る  R">∠</button>
     </div>
     <span class="sep"></span>
     <!-- 選択ツールのとき：ポーズ登録 -->
@@ -397,6 +418,19 @@
       <span class="sep"></span>
       <button id="addMotion">＋ モーション <kbd>N</kbd></button>
       <span class="target">登録先：<b id="targetName">モーション1</b></span>
+    </div>
+    <!-- 軌道ツールのとき -->
+    <div class="grp hidden" id="optArc">
+      <button class="arcSw" id="arcSw" title="クリックで軌道を切り替え"></button><span id="arcInfo" class="hint"></span>
+      <button id="arcNew" title="別の部位の軌道を始める">＋ 新しい軌道</button>
+      <label title="クリックしたあとに進むコマ">クリック後 <select id="arcStep"><option value="1">1コマ進む</option><option value="2">2コマ進む</option><option value="key">次のキーへ</option><option value="0">進まない</option></select></label>
+      <button id="arcDel" title="今の軌道を消す">この軌道を消す</button>
+      <span class="hint">クリックで点・右クリックで今のコマの点を消す</span>
+    </div>
+    <!-- 角度ツールのとき -->
+    <div class="grp hidden" id="optAngle">
+      <span class="hint">ドラッグで線（Shiftで15°きざみ）・2本目で差が出る・右クリックで線を消す</span>
+      <button id="angClear">このコマの線を消す</button>
     </div>
     <!-- ペン／消しゴムのとき：ブラシ設定 -->
     <div class="grp hidden" id="optPen">
@@ -413,6 +447,7 @@
       <label title="ブラシサイズ（動画のピクセル） [ ]で増減">直径 <input id="penSize" type="range" min="1" max="300" value="6"><span class="val" id="penSizeV">6px</span></label>
       <label id="opLbl" title="不透明度">不透明度 <input id="penOp" type="range" min="5" max="100" value="100"><span class="val" id="penOpV">100%</span></label>
       <label id="penPrL" title="ペンタブの筆圧で太さを変える（ペンで描くと自動で検出）"><input id="penPr" type="checkbox" checked><span id="penPrT">筆圧</span></label>
+      <label id="penPoL" title="筆圧で濃さ（不透明度）も変える"><input id="penPo" type="checkbox">濃さも</label>
       <label title="ブラシの硬さ（Photoshopの「硬さ」）。下げるとふちがぼける">硬さ <input id="penHd" type="range" min="0" max="100" value="100"><span class="val" id="penHdV">100%</span></label>
       <label title="手ブレ補正（Photoshopの「滑らかさ」）">補正 <input id="penSm" type="range" min="0" max="90" value="40"><span class="val" id="penSmV">40%</span></label>
       <span class="sep"></span>
@@ -436,6 +471,8 @@
     <div id="pickBox"></div><div id="stage"><video id="video" playsinline muted></video><video id="ovid" playsinline muted></video><canvas id="ghost"></canvas></div>
     <video id="gvid" playsinline muted class="hidden"></video>
     <canvas id="draw"></canvas>
+    <canvas id="anno"></canvas>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="lumA" color-interpolation-filters="sRGB"><feColorMatrix type="luminanceToAlpha"/></filter></svg>
     <div id="brushCur"></div>
     <canvas id="cap" class="hidden"></canvas>
     <div id="flash"></div>
@@ -447,7 +484,7 @@
       <div class="or"><b style="flex:1">動画を重ねる</b><button class="mini" id="ovClose" title="閉じる（重ね表示をやめる）">×</button></div>
       <div class="or"><span>重ねる</span><select id="ovSel"></select></div>
       <div class="or"><span>不透明度</span><input id="ovOp" type="range" min="5" max="100" value="50"><span class="val" id="ovOpV">50%</span></div>
-      <div class="or"><span>重ね方</span><select id="ovMode"><option value="normal">通常（透かす）</option><option value="diff">差の絶対値（違う所だけ光る）</option></select></div>
+      <div class="or"><span>重ね方</span><select id="ovMode"><option value="normal">通常（透かす）</option><option value="diff">差の絶対値（違う所だけ光る）</option><option value="side">左右に並べる（2画面）</option></select></div>
       <div class="or"><span>ずらし</span><button id="ovMinus" title="1フレーム前へ（Shiftで10）">−</button><input id="ovOff" type="number" value="0" title="重ねる動画を何フレームずらすか"><button id="ovPlus" title="1フレーム後へ（Shiftで10）">＋</button><span style="flex:1"></span><button id="ovSwap" title="表示中の動画と重ねる動画を入れ替える">⇅ 入れ替え</button></div>
     </div>
     <div id="vTabs" title="動画を切り替え（Ctrl+↑ / Ctrl+↓ でも）"></div>
@@ -613,6 +650,8 @@
 <li><kbd>1</kbd> タメ（橙）／<kbd>2</kbd> ヒット（緑）</li>
 <li><kbd>N</kbd> モーション追加／<kbd>↑</kbd><kbd>↓</kbd> 切り替え</li>
 <li><b>パワポ</b>：「日目」を入れて「パワポ書き出し」</li>
+<li><b>Maya用</b>：「ファイル → Maya 用に書き出す」（フレーム一覧と 1-01.jpg など）</li>
+<li>タイムスライダーにキー間のコマ数（6f など）が出ます</li>
 </ul>
 </section>
 
@@ -626,8 +665,21 @@
 <li><b>反転</b>：<kbd>Shift</kbd>+<kbd>H</kbd></li>
 <li><b>ゴースト</b>：<kbd>G</kbd>（前後のキーを半透明で）</li>
 <li><b>キーのみ再生</b>：<kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>B</kbd></li>
+<li><b>オニオンスキン</b>：<kbd>O</kbd>（前後のコマの動いた所だけ赤・緑で）</li>
 <li><b>重ねる</b>：別の動画を透かす（下の段のボタン）</li>
+<li><b>2画面</b>：「表示 → 2画面で並べる」</li>
+<li><b>補助線</b>：「表示」から中心線・三分割</li>
 <li><b>集中モード</b>：<kbd>Shift</kbd>+<kbd>Y</kbd></li>
+</ul>
+</section>
+
+<section data-t="分析 軌道 アーク 角度 測る">
+<h2>軌道と角度</h2>
+<ul>
+<li><kbd>A</kbd> 軌道：追いたい部位をクリック → 自動で次のコマへ</li>
+<li>「＋ 新しい軌道」で別の部位（色が変わる）</li>
+<li><kbd>R</kbd> 角度：ドラッグで線（2本目で差が出る）</li>
+<li>右クリックで点・線を消す／<kbd>Ctrl</kbd>+<kbd>Z</kbd> で戻す</li>
 </ul>
 </section>
 
@@ -642,7 +694,7 @@
 <li><kbd>H</kbd> ペンを隠す／<kbd>Shift</kbd>+<kbd>M</kbd> メモを隠す</li>
 <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> 今のコマを画像で保存</li>
 </ul>
-<p class="tip">描いた線はそのコマだけに残ります。筆圧はペンタブで自動。</p>
+<p class="tip">描いた線はそのコマだけに残ります。筆圧はペンタブで自動（「濃さも」で濃淡も変わる）。</p>
 </section>
 
 <section data-t="FBの回 新しいFB 前回を薄く 追加">
@@ -711,6 +763,8 @@
     <tr><td><kbd>H</kbd></td><td>ペン（線・貼った画像）を隠す／表示（消えません）</td></tr>
     <tr><td><kbd>Shift</kbd>+<kbd>M</kbd></td><td>画面上のメモを隠す／表示（消えません）</td></tr>
     <tr><td><kbd>T</kbd> / <kbd>Shift</kbd>+<kbd>T</kbd></td><td>追従のオン／オフ（拡大中もキャラを中央に追いかける）／追いかける対象を選び直す</td></tr>
+    <tr><td><kbd>A</kbd> / <kbd>R</kbd></td><td>軌道ツール／角度ツール</td></tr>
+    <tr><td><kbd>O</kbd></td><td>オニオンスキン（前後のコマを半透明で）</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>コピーした画像を今のフレームに貼り付け（画像をビューポートにドロップでも可）</td></tr>
     <tr><td>選択（<kbd>V</kbd>）で画像をドラッグ</td><td>移動。角をドラッグで拡大縮小（<kbd>Shift</kbd>で縦横比を変える）、<kbd>Delete</kbd>で削除、<kbd>Ctrl</kbd>+<kbd>Z</kbd>で戻す</td></tr>
     <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>ブラシを細く／太く</td></tr>
@@ -2695,9 +2749,10 @@ If you want to offset all timestamps of a track such that the first one is zero,
   const S = {
     videos: [], cur: null, motions: [{ tame: null, hit: null }], current: 0, day: 1,
     notes: {}, tool: 'select',
-    pen: { color: '#ff3b30', size: 6, opacity: 100, pressure: true, smooth: 40, hard: 100 }, eraser: { size: 30, hard: 100 },
+    pen: { color: '#ff3b30', size: 6, opacity: 100, pressure: true, po: false, smooth: 40, hard: 100 }, eraser: { size: 30, hard: 100 },
     layers: [{ id: 'L1', name: 'レイヤー 1', vis: true, op: 100 }], layer: 'L1',
-    keys: {}, stepped: false, ghost: false, name: '', storeVideos: true, keepDays: 20, groups: [], top: [], follow: false, track: {}, followSm: 0.6, fb: null, fbPrev: false,   // groups=[{id,name,open}] / top=一覧の最上位の並び（'g:フォルダーID' または 動画ID）
+    keys: {}, stepped: false, ghost: false, name: '', storeVideos: true, keepDays: 20, groups: [], top: [], follow: false, track: {}, followSm: 0.6, fb: null, fbPrev: false,
+    arcs: {}, meas: {}, guides: { center: false, thirds: false }, onion: { on: false, n: 2 }, keyGaps: true,   // groups=[{id,name,open}] / top=一覧の最上位の並び（'g:フォルダーID' または 動画ID）
     ov: { on: false, id: null, op: 50, mode: 'normal', off: 0 }, flip: false,   // keys[動画ID] = [フレーム…]
   };
   const V = () => S.videos.find(v => v.id === S.cur);
@@ -2735,7 +2790,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function snapshot() {
     return {
       app: 'pose-extractor', version: 1, savedAt: new Date().toISOString(),
-      name: S.name, day: S.day, current: S.current, cur: S.cur, motions: S.motions, notes: S.notes, pen: S.pen, eraser: S.eraser, layers: S.layers, layer: S.layer, ov: S.ov, flip: S.flip, keys: S.keys, stepped: S.stepped, ghost: S.ghost, groups: S.groups, top: S.top, follow: S.follow, track: S.track, followSm: S.followSm, fbPrev: S.fbPrev,
+      name: S.name, day: S.day, current: S.current, cur: S.cur, motions: S.motions, notes: S.notes, pen: S.pen, eraser: S.eraser, layers: S.layers, layer: S.layer, ov: S.ov, flip: S.flip, keys: S.keys, stepped: S.stepped, ghost: S.ghost, groups: S.groups, top: S.top, arcs: S.arcs, meas: S.meas, guides: S.guides, onion: S.onion, keyGaps: S.keyGaps, follow: S.follow, track: S.track, followSm: S.followSm, fbPrev: S.fbPrev,
       fbr: S.fb ? { cur: S.fb.cur, rounds: S.fb.rounds, store: Object.fromEntries(Object.entries(S.fb.store).filter(([k]) => Number(k) !== S.fb.cur)) } : null,
       videos: S.videos.map(v => ({ g: v.g, still: v.still, id: v.id, name: v.name, size: v.size, fp: v.fp, fps: v.fps, fpsSrc: v.fpsSrc, frame: v.frame, rStart: v.rStart, rEnd: v.rEnd, dur: v.dur, thumb: v.thumb })),
     };
@@ -3021,6 +3076,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (pts.length < 3) return null;
     const o = { t: st.t, c: COLOR_RE.test(st.c) ? st.c : '#ff3b30', s: sNum(st.s, 0.005, 0, 1), o: sNum(st.o, 1, 0, 1), pr: !!st.pr, l, pts };
     if (st.h != null) o.h = sNum(st.h, 1, 0, 1);
+    if (st.po) o.po = true;
     return o;
   }
   function sNotes(ns) {
@@ -3066,9 +3122,15 @@ If you want to offset all timestamps of a track such that the first one is zero,
     o.groups = (Array.isArray(d.groups) ? d.groups : []).filter(g => g && sId(g.id)).map(g => ({ id: g.id, name: sStr(g.name, 60), open: g.open !== false }));
     o.top = (Array.isArray(d.top) ? d.top : []).filter(x => typeof x === 'string').map(x => x.slice(0, 400));
     o.track = {}; if (d.track && typeof d.track === 'object') for (const k of Object.keys(d.track)) { const tr = d.track[k]; if (tr && Array.isArray(tr.pts)) o.track[sStr(k, 400)] = { a: Math.round(sNum(tr.a, 1, 1, 1e7)), pts: tr.pts.slice(0, 2e6).map(v => sNum(v, 0.5, -10, 10)) }; }
-    o.ov = d.ov && typeof d.ov === 'object' ? { on: !!d.ov.on, id: d.ov.id == null ? null : sStr(d.ov.id, 400), op: sNum(d.ov.op, 50, 0, 100), mode: d.ov.mode === 'diff' ? 'diff' : 'normal', off: Math.round(sNum(d.ov.off, 0, -1e6, 1e6)) } : undefined;
+    o.ov = d.ov && typeof d.ov === 'object' ? { on: !!d.ov.on, id: d.ov.id == null ? null : sStr(d.ov.id, 400), op: sNum(d.ov.op, 50, 0, 100), mode: ['diff', 'side'].includes(d.ov.mode) ? d.ov.mode : 'normal', off: Math.round(sNum(d.ov.off, 0, -1e6, 1e6)) } : undefined;
     for (const k of ['pen', 'eraser']) if (d[k] && typeof d[k] === 'object') { const s = {}; for (const [a, v] of Object.entries(d[k])) { if (a === 'color') { if (COLOR_RE.test(v)) s.color = v; } else if (typeof v === 'boolean') s[a] = v; else if (Number.isFinite(Number(v))) s[a] = Number(v); } o[k] = s; }
     o.followSm = sNum(d.followSm, 0.6, 0.05, 3);
+    const pt2 = (q) => Array.isArray(q) && q.length === 2 ? [sNum(q[0], 0.5, -10, 10), sNum(q[1], 0.5, -10, 10)] : null;
+    o.arcs = {}; if (d.arcs && typeof d.arcs === 'object') for (const vid of Object.keys(d.arcs)) { if (!Array.isArray(d.arcs[vid])) continue; o.arcs[sStr(vid, 400)] = d.arcs[vid].slice(0, 50).filter(a => a && typeof a.p === 'object').map(a => { const p = {}; for (const f of Object.keys(a.p)) { const q = pt2(a.p[f]); if (/^\d{1,7}$/.test(f) && q) p[f] = q; } return { c: COLOR_RE.test(a.c) ? a.c : '#ffd400', p }; }); }
+    o.meas = {}; if (d.meas && typeof d.meas === 'object') for (const vid of Object.keys(d.meas)) { const fo = d.meas[vid]; if (!fo || typeof fo !== 'object') continue; const out = {}; for (const f of Object.keys(fo)) if (/^\d{1,7}$/.test(f) && Array.isArray(fo[f])) out[f] = fo[f].filter(l => Array.isArray(l) && l.length === 4).slice(0, 100).map(l => l.map(v => sNum(v, 0.5, -10, 10))); o.meas[sStr(vid, 400)] = out; }
+    o.guides = { center: !!d.guides?.center, thirds: !!d.guides?.thirds };
+    o.onion = { on: !!d.onion?.on, n: Math.round(sNum(d.onion?.n, 2, 1, 5)) };
+    o.keyGaps = d.keyGaps !== false;
     if (d.fbr && typeof d.fbr === 'object') {
       const rounds = (Array.isArray(d.fbr.rounds) ? d.fbr.rounds : []).filter(r => r && Number.isInteger(Number(r.id))).slice(0, 200).map(r => ({ id: Number(r.id), name: sStr(r.name, 40) || 'FB', at: sStr(r.at, 20) }));
       const store = {}; if (d.fbr.store && typeof d.fbr.store === 'object') for (const k of Object.keys(d.fbr.store)) if (/^\d{1,6}$/.test(k)) store[k] = sNotes(d.fbr.store[k]);
@@ -3093,6 +3155,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
     });
     if (keepFiles) old.forEach((o, id) => { if (!S.videos.some(v => v.id === id)) S.videos.push(o); });
     S.track = d.track || {}; S.follow = !!d.follow; if (d.followSm) S.followSm = d.followSm; smCache = null; syncFollowBtn(); fOff.x = fOff.y = 0;
+    S.arcs = d.arcs || {}; S.meas = d.meas || {}; arcIdx = 0;
+    S.guides = d.guides || { center: false, thirds: false }; S.onion = d.onion || { on: false, n: 2 }; S.keyGaps = d.keyGaps !== false; syncViewMenu();
     S.groups = Array.isArray(d.groups) ? d.groups : []; S.top = Array.isArray(d.top) ? d.top : []; syncTree();
     $('#day').value = S.day;
     undoStack.length = redoStack.length = 0;
@@ -3702,8 +3766,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function ghostPlace() { Object.assign(ghost.style, { left: rect.x + 'px', top: rect.y + 'px', width: rect.w + 'px', height: rect.h + 'px' }); }
   function ghostHide() { ghost.style.display = 'none'; }
   const waitEv = (el, ev, ms = 2000) => new Promise(res => { const t = setTimeout(res, ms); el.addEventListener(ev, () => { clearTimeout(t); res(); }, { once: true }); });
-  function ghostFrame(vid, url, f, tint) {
-    const key = `${vid}:${f}:${tint}`;
+  function grayFrame(vid, url, f) {   // そのコマを白黒で取り出す（キャッシュする）
+    const key = `${vid}:${f}`;
     if (ghostCache.has(key)) return Promise.resolve(ghostCache.get(key));
     const job = gQueue.then(async () => {
       if (ghostCache.has(key)) return ghostCache.get(key);
@@ -3714,28 +3778,58 @@ If you want to offset all timestamps of a track such that the first one is zero,
       c.width = Math.round(gvid.videoWidth * s); c.height = Math.round(gvid.videoHeight * s);
       const x = c.getContext('2d');
       x.filter = 'grayscale(1) brightness(1.15)'; x.drawImage(gvid, 0, 0, c.width, c.height); x.filter = 'none';
-      x.globalCompositeOperation = 'multiply'; x.fillStyle = tint; x.fillRect(0, 0, c.width, c.height);
-      if (ghostCache.size > 24) ghostCache.delete(ghostCache.keys().next().value);
+      if (ghostCache.size > 40) ghostCache.delete(ghostCache.keys().next().value);
       ghostCache.set(key, c); return c;
     });
     gQueue = job.catch(() => null);
     return job;
   }
+  function tinted(src, tint) {
+    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    const x = c.getContext('2d'); x.drawImage(src, 0, 0); x.globalCompositeOperation = 'multiply'; x.fillStyle = tint; x.fillRect(0, 0, c.width, c.height);
+    return c;
+  }
+  // オニオンスキン：今のコマと違う所（動いた所）だけを色付きで重ねる → 背景は色がつかない
+  function movedOnly(nb, cur, tint) {
+    const w = nb.width, h = nb.height, d = document.createElement('canvas'); d.width = w; d.height = h;
+    const x = d.getContext('2d');
+    x.drawImage(cur, 0, 0); x.globalCompositeOperation = 'difference'; x.drawImage(nb, 0, 0);
+    const m = document.createElement('canvas'); m.width = w; m.height = h;
+    const mx = m.getContext('2d'); mx.filter = 'contrast(6) brightness(1.4) url(#lumA)'; mx.drawImage(d, 0, 0); mx.filter = 'none';
+    mx.globalCompositeOperation = 'source-in'; mx.drawImage(tinted(nb, tint), 0, 0);
+    return m;
+  }
+  // オニオンスキンも同じ仕組み（前のコマ＝赤、後のコマ＝緑。遠いコマほど薄く）
   function ghostRefresh() {
     clearTimeout(gTimer);
-    if (!S.ghost || !has() || stepPlay || !video.paused) { ghostHide(); return; }
+    if (!(S.ghost || S.onion?.on) || !has() || stepPlay || !video.paused || V()?.still) { ghostHide(); return; }
     gTimer = setTimeout(async () => {
-      const tok = ++gToken, v = V(), n = frame(), ks = allKeys();
-      const prev = [...ks].reverse().find(k => k < n), next = ks.find(k => k > n);
-      if (prev == null && next == null) { ghostHide(); return; }
-      const [a, b] = await Promise.all([prev != null ? ghostFrame(v.id, v.url, prev, '#ff5050') : null, next != null ? ghostFrame(v.id, v.url, next, '#50ff70') : null]);
-      if (tok !== gToken || !S.ghost || !video.paused || stepPlay) return;
-      const src = a || b; if (!src) { ghostHide(); return; }
+      const tok = ++gToken, v = V(), n = frame(), ly = [];
+      if (S.onion?.on) for (let d = S.onion.n; d >= 1; d--) {
+        const al = 0.35 + 0.65 * (S.onion.n - d + 1) / S.onion.n;
+        if (n - d >= v.rStart) ly.push([n - d, '#ff5050', al, 'onion']);
+        if (n + d <= v.rEnd) ly.push([n + d, '#50ff70', al, 'onion']);
+      }
+      if (S.ghost) {
+        const ks = allKeys(), prev = [...ks].reverse().find(k => k < n), next = ks.find(k => k > n);
+        if (prev != null) ly.push([prev, '#ff5050', 1]);
+        if (next != null) ly.push([next, '#50ff70', 0.5]);
+      }
+      if (!ly.length) { ghostHide(); return; }
+      const imgs = await Promise.all(ly.map(([f]) => grayFrame(v.id, v.url, f)));
+      const curG = S.onion?.on && lumaOk() ? await grayFrame(v.id, v.url, n) : null;
+      if (tok !== gToken || !(S.ghost || S.onion?.on) || !video.paused || stepPlay) return;
+      const src = imgs.find(Boolean); if (!src) { ghostHide(); return; }
       ghost.width = src.width; ghost.height = src.height;
       gx.clearRect(0, 0, ghost.width, ghost.height);
-      if (a && b) { gx.globalAlpha = 1; gx.drawImage(a, 0, 0); gx.globalAlpha = 0.5; gx.drawImage(b, 0, 0); gx.globalAlpha = 1; }
-      else gx.drawImage(src, 0, 0);
-      ghost.style.opacity = 0.42; ghostPlace(); ghost.style.display = 'block';
+      ly.forEach(([, c, al, kind], i) => {
+        if (!imgs[i]) return;
+        gx.globalAlpha = kind === 'onion' && curG ? Math.min(1, al * 1.4) : al * (kind === 'onion' ? 0.6 : 1);
+        gx.drawImage(kind === 'onion' && curG ? movedOnly(imgs[i], curG, c) : tinted(imgs[i], c), 0, 0);
+      });
+      gx.globalAlpha = 1;
+      ghost.style.opacity = S.ghost ? 0.45 : 0.85;
+      ghost.style.opacity = 0.45; ghostPlace(); ghost.style.display = 'block';
     }, 60);
   }
   function toggleGhost() {
@@ -3796,6 +3890,18 @@ If you want to offset all timestamps of a track such that the first one is zero,
       if (nt.memo) { c.fillStyle = '#e8c547'; c.fillRect(bx(f) - 1, 0, bw + 2, 5); }
       if (nt.strokes.length) { c.fillStyle = '#4aa3ff'; c.fillRect(bx(f) - 1, H - 5, bw + 2, 5); }
     });
+    if (S.keyGaps) {   // キーとキーの間のコマ数
+      const ks = allKeys().filter(f => f >= a && f <= b);
+      c.font = 'bold 10px Segoe UI, sans-serif'; c.textBaseline = 'middle'; c.textAlign = 'center';
+      for (let i = 1; i < ks.length; i++) {
+        const x0 = bx(ks[i - 1]) + bw, x1 = bx(ks[i]), txt = `${ks[i] - ks[i - 1]}f`;
+        if (x1 - x0 < c.measureText(txt).width + 6) continue;
+        const cx = (x0 + x1) / 2, cy = Math.round(H * 0.42);
+        c.fillStyle = 'rgba(30,30,30,.75)'; const tw = c.measureText(txt).width + 6; c.fillRect(cx - tw / 2, cy - 7, tw, 14);
+        c.fillStyle = '#ffd27a'; c.fillText(txt, cx, cy);
+      }
+      c.textAlign = 'left'; c.textBaseline = 'top';
+    }
     c.fillStyle = '#d0d0d0'; c.font = '10px Segoe UI, sans-serif';   // 数字はキーの上に重ねて、隠れないようにする
     for (let f = Math.ceil(a / lab) * lab; f <= b; f += lab) c.fillText(String(f), Math.round(X(f)) + 2.5, H - 14);
     if (n >= a && n <= b) {
@@ -3880,8 +3986,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
 
   function layoutDraw() {
     const W = vp.clientWidth, H = vp.clientHeight;
-    const vw = video.videoWidth || 16, vh = video.videoHeight || 9, s = Math.min(W / vw, H / vh);
-    rect = { w: vw * s, h: vh * s }; rect.x = (W - rect.w) / 2; rect.y = (H - rect.h) / 2;
+    const side = vp.classList.contains('side'), Wv = side ? W / 2 : W;   // 2画面のときは左半分
+    const vw = video.videoWidth || 16, vh = video.videoHeight || 9, s = Math.min(Wv / vw, H / vh);
+    rect = { w: vw * s, h: vh * s }; rect.x = (Wv - rect.w) / 2; rect.y = (H - rect.h) / 2;
     dpr = window.devicePixelRatio || 1;
     const cw = Math.max(1, Math.round(W * dpr)), ch = Math.max(1, Math.round(H * dpr));
     [draw, below, actv, above, ltmp, scratch].forEach(c => { if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; } });
@@ -3990,11 +4097,47 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const pad = st.s * AW / 2 + blur * 3 + 2;
     return { blur, x: Math.floor(x0 - pad), y: Math.floor(y0 - pad), w: Math.ceil(x1 - x0 + pad * 2), h: Math.ceil(y1 - y0 + pad * 2) };
   }
+  // 筆圧で濃さを変える線：濃さを白黒の濃淡で描き（重なりは濃い方を採用）、それを透明度に変えてから色を塗る
+  const [pmask, pmx] = mk();
+  let LUMA_OK = null;
+  function lumaOk() {
+    if (LUMA_OK != null) return LUMA_OK;
+    try {
+      const a = document.createElement('canvas'); a.width = a.height = 2; const x = a.getContext('2d');
+      const s = document.createElement('canvas'); s.width = s.height = 2; const sx = s.getContext('2d'); sx.fillStyle = 'rgb(128,128,128)'; sx.fillRect(0, 0, 2, 2);
+      x.filter = 'url(#lumA)'; x.drawImage(s, 0, 0); const al = x.getImageData(0, 0, 1, 1).data[3];
+      LUMA_OK = al > 100 && al < 160;
+    } catch { LUMA_OK = false; }
+    return LUMA_OK;
+  }
+  function pressurePath(scr, st, m) {
+    const sx = scr.getContext('2d');
+    if (!lumaOk()) return strokePath(sx, st, m);   // 対応していないブラウザでは、ふつうの線にする
+    if (pmask.width !== scr.width || pmask.height !== scr.height) { pmask.width = scr.width; pmask.height = scr.height; }
+    const b = strokePath(sx, st, m);   // 形と範囲を知るため（あとで消す）
+    const x = Math.max(0, b.x), y = Math.max(0, b.y), w = Math.min(scr.width, b.x + b.w) - x, h = Math.min(scr.height, b.y + b.h) - y;
+    if (w <= 0 || h <= 0) return b;
+    pmx.save(); pmx.fillStyle = '#000'; pmx.fillRect(x, y, w, h); pmx.globalCompositeOperation = 'lighten';
+    const k = dpr, ox = m.ox * k, oy = m.oy * k, W = m.sw * k, H = m.sh * k, p = st.pts;
+    const hd = st.h ?? 1, core = HAS_FILTER ? 0.4 + 0.6 * hd : 1, base = st.s * Math.abs(W) * core;
+    const wAt = (pr) => Math.max(0.6, st.pr ? base * (0.12 + 0.88 * pr) : base);
+    const gray = (pr) => { const v = Math.round(255 * (0.12 + 0.88 * Math.max(0, Math.min(1, pr)))); return `rgb(${v},${v},${v})`; };
+    pmx.lineCap = 'round'; pmx.lineJoin = 'round';
+    if (p.length <= 3) { pmx.fillStyle = gray(p[2]); pmx.beginPath(); pmx.arc(ox + p[0] * W, oy + p[1] * H, wAt(p[2]) / 2, 0, Math.PI * 2); pmx.fill(); }
+    else for (let i = 3; i < p.length; i += 3) {
+      const pr = (p[i - 1] + p[i + 2]) / 2; pmx.lineWidth = wAt(pr); pmx.strokeStyle = gray(pr);
+      pmx.beginPath(); pmx.moveTo(ox + p[i - 3] * W, oy + p[i - 2] * H); pmx.lineTo(ox + p[i] * W, oy + p[i + 1] * H); pmx.stroke();
+    }
+    pmx.restore();
+    sx.save(); sx.clearRect(x, y, w, h); sx.filter = 'url(#lumA)'; sx.drawImage(pmask, x, y, w, h, x, y, w, h); sx.filter = 'none';
+    sx.globalCompositeOperation = 'source-in'; sx.fillStyle = st.c; sx.fillRect(x, y, w, h); sx.restore();
+    return b;
+  }
   function drawStroke(ctx, st, m, scr = scratch) {
     if (st.t === 'i') { drawPic(ctx, st, m); return; }
     const sx = scr.getContext('2d');
     sx.clearRect(0, 0, scr.width, scr.height);
-    const b = strokePath(sx, st, m);
+    const b = st.po && st.t === 'b' ? pressurePath(scr, st, m) : strokePath(sx, st, m);
     const x = Math.max(0, b.x), y = Math.max(0, b.y), w = Math.min(scr.width, b.x + b.w) - x, h = Math.min(scr.height, b.y + b.h) - y;
     if (w <= 0 || h <= 0) return;
     ctx.save();
@@ -4041,6 +4184,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     dctx.drawImage(above, 0, 0);
     dctx.restore();
     drawSel();
+    paintAnno();
   }
   const requestPaint = () => { if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; paintDrawing(false); }); };
 
@@ -4052,6 +4196,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const er = S.tool === 'eraser', h = curHard() / 100;
     const st = { t: er ? 'e' : 'b', c: S.pen.color, s: curSize() / (video.videoWidth || 1000), o: er ? 1 : S.pen.opacity / 100, pr: S.pen.pressure, l: activeLayer().id, pts: [] };
     if (h < 1) st.h = h;
+    if (!er && S.pen.pressure && S.pen.po) st.po = true;
     return st;
   }
   let sm = null;   // 手ブレ補正（遅れて追従する点）
@@ -4067,7 +4212,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   $('#tgHide').onclick = () => toggleHide();
   $('#tgMemoHide').onclick = () => toggleMemoHide();
   draw.addEventListener('pointerdown', e => {
-    if (kDown || spaceDown || !has() || S.tool === 'select' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (kDown || spaceDown || !has() || (S.tool !== 'pen' && S.tool !== 'eraser') || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault(); e.stopPropagation();
     if (fbHidden) toggleHide(false);   // 隠したまま描くと見えないので表示に戻す
     if (e.pointerType === 'pen' && !penSeen) { penSeen = true; $('#penPrT').textContent = '筆圧 ✓'; $('#penPrL').title = 'ペンタブレットを検出しました。筆圧で太さが変わります'; say('ペンタブレットを検出しました（筆圧で線の太さが変わります）'); }
@@ -4299,6 +4444,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     fbChanged(); paintDrawing(true);
   }
   function applyOp(o, undo) {
+    if (o.op === 'arc' || o.op === 'meas') { applyAnnoOp(o, undo); return; }
     if (o.op === 'key') {
       setKeyAt(o.vid, o.f, undo ? !o.on : o.on);
       if (o.vid === S.cur && has() && o.f !== frame()) goto(o.f, true);
@@ -4330,23 +4476,28 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (typeof picking !== 'undefined' && picking) cancelPick();   // 追従の範囲選び中なら、ツールを切り替えたら終わる
     S.tool = t;
     $$('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
-    document.body.classList.toggle('drawing', t !== 'select');
+    const pen = t === 'pen' || t === 'eraser', meas = t === 'arc' || t === 'angle';
+    document.body.classList.toggle('drawing', pen);
+    document.body.classList.toggle('measuring', meas);
     $('#optPose').classList.toggle('hidden', t !== 'select');
-    $('#optPen').classList.toggle('hidden', t === 'select');
+    $('#optPen').classList.toggle('hidden', !pen);
+    $('#optArc').classList.toggle('hidden', t !== 'arc');
+    $('#optAngle').classList.toggle('hidden', t !== 'angle');
+    if (t === 'arc') syncArcUI();
     $('#opLbl').classList.toggle('hidden', t === 'eraser');
     $('#penColors').classList.toggle('hidden', t === 'eraser');
-    if (t === 'select') brushCur.style.display = 'none';
+    if (!pen) brushCur.style.display = 'none';
     else if (L.right.open) setTab('fb');
     syncPenUI();
     paintDrawing(false);
-    say(t === 'pen' ? 'ペン：ビューポートに描けます（[ ]で太さ、Shift+クリックで直線）' : t === 'eraser' ? '消しゴム：描いた線を消せます（貼り付けた画像も消せます）' : '選択ツール（貼り付けた画像はドラッグで移動・角で拡大縮小）');
+    say(t === 'pen' ? 'ペン：ビューポートに描けます（[ ]で太さ、Shift+クリックで直線）' : t === 'eraser' ? '消しゴム：描いた線を消せます（貼り付けた画像も消せます）' : t === 'arc' ? '軌道：追いたい部位をクリック → 自動で次のコマへ。点がつながって軌道になります' : t === 'angle' ? '角度：ドラッグで線を引くと傾きが出ます（2本目で差も出ます）' : '選択ツール（貼り付けた画像はドラッグで移動・角で拡大縮小）');
   }
   $$('[data-tool]').forEach(b => b.onclick = () => setTool(b.dataset.tool));
   function syncPenUI() {
     const sz = curSize();
     $('#penSize').value = sz; $('#penSizeV').textContent = sz + 'px';
     $('#penOp').value = S.pen.opacity; $('#penOpV').textContent = S.pen.opacity + '%';
-    $('#penPr').checked = S.pen.pressure;
+    $('#penPr').checked = S.pen.pressure; $('#penPo').checked = !!S.pen.po; $('#penPoL').classList.toggle('hidden', S.tool === 'eraser');
     const hd = curHard(); $('#penHd').value = hd; $('#penHdV').textContent = hd + '%';
     $('#penSm').value = S.pen.smooth; $('#penSmV').textContent = S.pen.smooth + '%';
     $('#penColor').value = S.pen.color;
@@ -4356,6 +4507,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   $('#penSize').oninput = () => setSize(Number($('#penSize').value));
   $('#penOp').oninput = () => { S.pen.opacity = Number($('#penOp').value); syncPenUI(); save(); };
   $('#penPr').onchange = () => { S.pen.pressure = $('#penPr').checked; save(); };
+  $('#penPo').onchange = () => { S.pen.po = $('#penPo').checked; if (S.pen.po && !S.pen.pressure) { S.pen.pressure = true; $('#penPr').checked = true; } save(); say(S.pen.po ? '筆圧で濃さも変わります（軽く描くと薄く）' : '濃さは一定になります'); };
   $('#penSm').oninput = () => { S.pen.smooth = Number($('#penSm').value); syncPenUI(); save(); };
   $('#penColor').oninput = () => { S.pen.color = $('#penColor').value; syncPenUI(); save(); };
   $$('.sw').forEach(b => b.onclick = () => { S.pen.color = b.dataset.c; syncPenUI(); save(); });
@@ -4664,6 +4816,13 @@ If you want to offset all timestamps of a track such that the first one is zero,
     clearAll: () => clearAll(),
     newWork: () => newWork(),
     keepDays: () => setKeepDays(),
+    exportMaya: () => exportMaya(),
+    gCenter: () => setGuide('center'),
+    gThirds: () => setGuide('thirds'),
+    onion: () => toggleOnion(),
+    onionN: () => setOnionN(),
+    keyGaps: () => { S.keyGaps = !S.keyGaps; syncViewMenu(); drawTS(); save(); },
+    side: () => toggleSide(),
     storage: () => showStorage().catch(e => say('確認できませんでした：' + (e?.message || e))),
     library: () => { $('#libPop').dataset.anchor = 'menu'; openLib($('#menuFile')); },
     exportFrame: () => exportFrame().catch(err => say('画像を保存できませんでした：' + err.message)),
@@ -4728,9 +4887,12 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function ovApply() {
     const o = ovV();
     $('#tgOv').classList.toggle('on', !!S.ov.on);
+    const side = !!o && S.ov.mode === 'side';
+    if (vp.classList.contains('side') !== side) { vp.classList.toggle('side', side); layoutDraw(); }
+    if (typeof syncViewMenu === 'function') syncViewMenu();
     if (!o) { ovid.style.display = 'none'; if (!ovid.paused) ovid.pause(); return; }
     if (ovid.dataset.id !== o.id) { ovid.dataset.id = o.id; ovid.src = o.url; }
-    Object.assign(ovid.style, { display: 'block', opacity: S.ov.op / 100, mixBlendMode: S.ov.mode === 'diff' ? 'difference' : 'normal' });
+    Object.assign(ovid.style, { display: 'block', opacity: side ? 1 : S.ov.op / 100, mixBlendMode: S.ov.mode === 'diff' ? 'difference' : 'normal' });
     if (video.paused) ovSeek(frame());
   }
   function ovSeek(n) {
@@ -4812,7 +4974,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (!following()) return;
     const p = trackPt(frame()); if (!p) return;
     const m = M(), sx = m.ox + p[0] * m.sw, sy = m.oy + p[1] * m.sh;
-    view.tx += vp.clientWidth / 2 + fOff.x - sx; view.ty += vp.clientHeight / 2 + fOff.y - sy;
+    view.tx += vp.clientWidth / (vp.classList.contains('side') ? 4 : 2) + fOff.x - sx; view.ty += vp.clientHeight / 2 + fOff.y - sy;
   }
   function syncFollowBtn() {   // 光るのは「今の動画で追従しているとき」だけ
     const on = S.follow && (!!trackOf() || (typeof picking !== 'undefined' && picking));
@@ -5165,6 +5327,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
     else if (k === 'b') setTool('pen');
     else if (k === 'e') setTool('eraser');
     else if (k === 'v') setTool('select');
+    else if (k === 'a' && !e.altKey) setTool('arc');
+    else if (k === 'r' && !e.altKey) setTool('angle');
+    else if (k === 'o' && !e.altKey) toggleOnion();
     else if (k === 'm' && e.shiftKey) { e.preventDefault(); toggleMemoHide(); }
     else if (k === 'm') { e.preventDefault(); focusMemo(); }
     else if (k === 's') setKey();
@@ -5246,6 +5411,265 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   function say(text) { msg.textContent = text; }
 
+  // ================= 分析ツール（軌道・角度・補助線） =================
+  // ビューポートの一番上に重ねる透明なキャンバス。ペンを隠しても消えない
+  const anno = $('#anno'), an = anno.getContext('2d');
+  const ARC_COLORS = ['#ffd400', '#00e5ff', '#ff4fd8', '#7cff4f', '#ff8c1a', '#b18cff'];
+  let arcIdx = 0, measDrag = null;
+  const r4 = (v) => Math.round(v * 10000) / 10000;
+  const arcsOf = (vid = S.cur) => (S.arcs[vid] ||= []);
+  function curArc(create) {
+    const a = arcsOf();
+    if (!a.length && create) a.push({ c: ARC_COLORS[0], p: {} });
+    arcIdx = Math.max(0, Math.min(arcIdx, a.length - 1));
+    return a[arcIdx] || null;
+  }
+  const measOf = (f, create) => { const o = (S.meas[S.cur] ||= {}); if (create) o[f] ||= []; return o[f] || []; };
+  const lineDeg = (a, b) => { let d = Math.atan2(-(b[1] - a[1]), b[0] - a[0]) * 180 / Math.PI; if (d > 90) d -= 180; if (d <= -90) d += 180; return d; };
+  function label(x, y, txt, col) {
+    an.font = 'bold 12px Segoe UI, sans-serif'; const w = an.measureText(txt).width + 8;
+    an.fillStyle = 'rgba(0,0,0,.65)'; an.fillRect(x, y - 9, w, 18);
+    an.fillStyle = col; an.textBaseline = 'middle'; an.fillText(txt, x + 4, y);
+  }
+  function paintAnno() {
+    const W = vp.clientWidth, H = vp.clientHeight, cw = Math.max(1, Math.round(W * dpr)), ch = Math.max(1, Math.round(H * dpr));
+    if (anno.width !== cw || anno.height !== ch) { anno.width = cw; anno.height = ch; }
+    an.setTransform(dpr, 0, 0, dpr, 0, 0); an.clearRect(0, 0, W, H);
+    if (!has()) return;
+    const m = M(), P = (x, y) => [m.ox + x * m.sw, m.oy + y * m.sh], f = frame();
+    // 補助線
+    const gl = [...(S.guides.center ? [0.5] : []), ...(S.guides.thirds ? [1 / 3, 2 / 3] : [])];
+    if (gl.length) {
+      an.save(); an.lineWidth = 1; an.setLineDash([6, 4]); an.strokeStyle = 'rgba(0,229,255,.75)';
+      gl.forEach(t => {
+        let [x0, y0] = P(t, 0), [x1, y1] = P(t, 1); an.beginPath(); an.moveTo(x0, y0); an.lineTo(x1, y1); an.stroke();
+        [x0, y0] = P(0, t); [x1, y1] = P(1, t); an.beginPath(); an.moveTo(x0, y0); an.lineTo(x1, y1); an.stroke();
+      });
+      an.restore();
+    }
+    // 軌道（コマごとの点をなめらかにつなぐ）
+    arcsOf().forEach((a, i) => {
+      const fs = Object.keys(a.p).map(Number).sort((x, y) => x - y); if (!fs.length) return;
+      const pts = fs.map(k => P(a.p[k][0], a.p[k][1]));
+      an.save(); an.globalAlpha = S.tool === 'arc' && i !== arcIdx ? 0.5 : 1;
+      an.strokeStyle = 'rgba(0,0,0,.6)'; an.lineWidth = 4; an.lineJoin = an.lineCap = 'round';
+      const path = () => {
+        an.beginPath(); an.moveTo(pts[0][0], pts[0][1]);
+        for (let j = 0; j < pts.length - 1; j++) {
+          const p0 = pts[j - 1] || pts[j], p1 = pts[j], p2 = pts[j + 1], p3 = pts[j + 2] || p2;
+          an.bezierCurveTo(p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6, p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6, p2[0], p2[1]);
+        }
+      };
+      path(); an.stroke(); an.strokeStyle = a.c; an.lineWidth = 2; path(); an.stroke();
+      pts.forEach((p, j) => {
+        const cur = fs[j] === f;
+        an.beginPath(); an.arc(p[0], p[1], cur ? 5.5 : 3, 0, Math.PI * 2); an.fillStyle = a.c; an.fill();
+        an.lineWidth = cur ? 2 : 1; an.strokeStyle = cur ? '#fff' : 'rgba(0,0,0,.7)'; an.stroke();
+      });
+      an.restore();
+    });
+    // 角度（このコマの線）
+    const ls = [...measOf(f)]; if (measDrag?.b) ls.push([...measDrag.a, ...measDrag.b]);
+    const degs = [];
+    ls.forEach((l, i) => {
+      const a = P(l[0], l[1]), b = P(l[2], l[3]), d = lineDeg(a, b); degs.push(d);
+      an.save(); an.lineCap = 'round';
+      an.strokeStyle = 'rgba(0,0,0,.7)'; an.lineWidth = 4; an.beginPath(); an.moveTo(...a); an.lineTo(...b); an.stroke();
+      an.strokeStyle = '#ffffff'; an.lineWidth = 2; an.beginPath(); an.moveTo(...a); an.lineTo(...b); an.stroke();
+      [a, b].forEach(p => { an.beginPath(); an.arc(p[0], p[1], 3, 0, Math.PI * 2); an.fillStyle = '#fff'; an.fill(); });
+      label(b[0] + 8, b[1], `${Math.abs(d).toFixed(1)}°`, '#fff');
+      an.restore();
+      if (i > 0) {
+        let g = Math.abs(degs[i] - degs[i - 1]); if (g > 90) g = 180 - g;
+        label((a[0] + b[0]) / 2 + 8, (a[1] + b[1]) / 2 + 16, `前の線との差 ${g.toFixed(1)}°`, '#ffd400');
+      }
+    });
+  }
+  function arcAdvance(f, shift) {
+    if (shift) return;
+    const st = $('#arcStep').value, v = V();
+    if (st === 'key') { const nx = allKeys().find(k => k > f); if (nx != null) goto(nx); else say('この先にキーがありません'); return; }
+    const n = Number(st); if (n) goto(Math.min(v.rEnd, f + n));
+  }
+  function syncArcUI() {
+    const a = arcsOf(), cur = curArc(false);
+    $('#arcSw').style.background = cur ? cur.c : ARC_COLORS[a.length % ARC_COLORS.length];
+    $('#arcInfo').textContent = a.length ? `軌道 ${arcIdx + 1}/${a.length}・${cur ? Object.keys(cur.p).length : 0}点` : '軌道なし';
+  }
+  anno.addEventListener('contextmenu', e => e.preventDefault());
+  anno.addEventListener('pointerdown', e => {
+    if (!has() || kDown || spaceDown) return;
+    e.preventDefault(); e.stopPropagation();
+    if (!video.paused) video.pause();
+    const f = frame(), [x, y] = toNorm(e);
+    if (S.tool === 'arc') {
+      const a = curArc(e.button === 0);
+      if (e.button === 2) {   // 右クリック：今のコマの点を消す
+        if (!a?.p[f]) { say('このコマには点がありません'); return; }
+        undoStack.push({ vid: S.cur, f, op: 'arc', a, before: a.p[f], after: null }); redoStack.length = 0;
+        delete a.p[f]; save(); paintAnno(); syncArcUI(); return;
+      }
+      if (e.button !== 0) return;
+      const before = a.p[f] || null; a.p[f] = [r4(x), r4(y)];
+      undoStack.push({ vid: S.cur, f, op: 'arc', a, before, after: a.p[f] }); redoStack.length = 0;
+      save(); paintAnno(); syncArcUI(); arcAdvance(f, e.shiftKey);
+    } else if (S.tool === 'angle') {
+      if (e.button === 2) {   // 右クリック：近くの線を消す
+        const ls = measOf(f), m = M(), P = (u, w) => [m.ox + u * m.sw, m.oy + w * m.sh], r = vp.getBoundingClientRect(), q = [e.clientX - r.left, e.clientY - r.top];
+        const dist = (l) => { const a = P(l[0], l[1]), b = P(l[2], l[3]), dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy || 1))); return Math.hypot(a[0] + t * dx - q[0], a[1] + t * dy - q[1]); };
+        let bi = -1, bd = 12; ls.forEach((l, i) => { const d = dist(l); if (d < bd) { bd = d; bi = i; } });
+        if (bi < 0) { say('近くに線がありません'); return; }
+        const [l] = ls.splice(bi, 1);
+        undoStack.push({ vid: S.cur, f, op: 'meas', l, i: bi, del: true }); redoStack.length = 0;
+        save(); paintAnno(); return;
+      }
+      if (e.button !== 0) return;
+      try { anno.setPointerCapture(e.pointerId); } catch {}
+      measDrag = { id: e.pointerId, a: [r4(x), r4(y)], b: null, f };
+    }
+  });
+  anno.addEventListener('pointermove', e => {
+    if (!measDrag || e.pointerId !== measDrag.id) return;
+    const [x, y] = toNorm(e); measDrag.b = [r4(x), r4(y)];
+    if (e.shiftKey) {   // Shift：15°きざみ
+      const m = M(), A = [m.ox + measDrag.a[0] * m.sw, m.oy + measDrag.a[1] * m.sh], B = [m.ox + x * m.sw, m.oy + y * m.sh];
+      const len = Math.hypot(B[0] - A[0], B[1] - A[1]), ang = Math.round(Math.atan2(B[1] - A[1], B[0] - A[0]) / (Math.PI / 12)) * (Math.PI / 12);
+      measDrag.b = [r4(measDrag.a[0] + Math.cos(ang) * len / m.sw), r4(measDrag.a[1] + Math.sin(ang) * len / m.sh)];
+    }
+    paintAnno();
+  });
+  const endMeas = (e) => {
+    if (!measDrag || e.pointerId !== measDrag.id) return;
+    const d = measDrag; measDrag = null;
+    if (d.b) {
+      const m = M(), len = Math.hypot((d.b[0] - d.a[0]) * m.sw, (d.b[1] - d.a[1]) * m.sh);
+      if (len > 6) {
+        const l = [...d.a, ...d.b], ls = measOf(d.f, true); ls.push(l);
+        undoStack.push({ vid: S.cur, f: d.f, op: 'meas', l, i: ls.length - 1 }); redoStack.length = 0; save();
+      }
+    }
+    paintAnno();
+  };
+  anno.addEventListener('pointerup', endMeas); anno.addEventListener('pointercancel', endMeas);
+  function applyAnnoOp(o, undo) {
+    if (o.vid === S.cur && has() && o.f !== frame()) goto(o.f, true);
+    if (o.op === 'arc') { const v = undo ? o.before : o.after; if (v) o.a.p[o.f] = v; else delete o.a.p[o.f]; syncArcUI(); }
+    else {
+      const ls = (S.meas[o.vid] ||= {})[o.f] ||= [];
+      const add = o.del ? undo : !undo;
+      if (add) ls.splice(Math.min(o.i, ls.length), 0, o.l); else { const i = ls.indexOf(o.l); if (i >= 0) ls.splice(i, 1); }
+    }
+    save(); paintAnno();
+  }
+  $('#arcNew').onclick = () => {
+    const a = arcsOf(); a.push({ c: ARC_COLORS[a.length % ARC_COLORS.length], p: {} }); arcIdx = a.length - 1;
+    save(); syncArcUI(); paintAnno(); say(`軌道 ${a.length} を始めました。追いたい部位をクリックしてください`);
+  };
+  $('#arcDel').onclick = async () => {
+    const a = curArc(false); if (!a) { say('消す軌道がありません'); return; }
+    if (Object.keys(a.p).length > 2 && !(await ask(`軌道 ${arcIdx + 1}（${Object.keys(a.p).length}点）を消しますか？`, '軌道を消す'))) return;
+    arcsOf().splice(arcIdx, 1); arcIdx = Math.max(0, arcIdx - 1);
+    undoStack.length = redoStack.length = 0; save(); syncArcUI(); paintAnno();
+  };
+  $('#arcSw').onclick = () => { const a = arcsOf(); if (a.length > 1) { arcIdx = (arcIdx + 1) % a.length; syncArcUI(); paintAnno(); } };
+  $('#angClear').onclick = () => {
+    if (!has()) return; const f = frame(), ls = measOf(f); if (!ls.length) { say('このコマには線がありません'); return; }
+    ls.slice().reverse().forEach((l, k) => undoStack.push({ vid: S.cur, f, op: 'meas', l, i: ls.length - 1 - k, del: true }));
+    ls.length = 0; redoStack.length = 0; save(); paintAnno();
+  };
+  function setGuide(k) {
+    S.guides[k] = !S.guides[k]; syncViewMenu(); paintAnno(); save();
+    say(`補助線（${k === 'center' ? '中心線' : '三分割'}）：${S.guides[k] ? 'オン' : 'オフ'}`);
+  }
+  function syncViewMenu() {
+    const ck = (b) => b ? '✓ ' : '　';
+    $('#mGCenter').firstChild.nodeValue = ck(S.guides.center) + '補助線：中心線';
+    $('#mGThirds').firstChild.nodeValue = ck(S.guides.thirds) + '補助線：三分割';
+    $('#mOnion').firstChild.nodeValue = ck(S.onion.on) + `オニオンスキン（前後${S.onion.n}コマ）`;
+    $('#mKeyGaps').firstChild.nodeValue = ck(S.keyGaps) + 'キー間のコマ数を表示';
+    $('#mSide').firstChild.nodeValue = ck(S.ov.on && S.ov.mode === 'side') + '2画面で並べる';
+  }
+  function toggleOnion() {
+    S.onion.on = !S.onion.on; syncViewMenu(); ghostRefresh(); save();
+    say(S.onion.on ? `オニオンスキン：オン（前＝赤・後＝緑、前後${S.onion.n}コマ。止めているときに表示）` : 'オニオンスキン：オフ');
+  }
+  async function setOnionN() {
+    const sel = document.createElement('select'); sel.style.marginTop = '8px';
+    sel.innerHTML = [1, 2, 3, 4, 5].map(n => `<option value="${n}"${n === S.onion.n ? ' selected' : ''}>前後 ${n} コマ</option>`).join('');
+    const p = ask('オニオンスキンで重ねるコマ数を選んでください。\n多いほど表示まで少し時間がかかります。', 'オニオンスキンの枚数');
+    $('#modalText').append(document.createElement('br'), sel); sel.focus();
+    if (!(await p)) return;
+    S.onion.n = Number(sel.value); S.onion.on = true; syncViewMenu(); ghostRefresh(); save();
+  }
+  function toggleSide() {
+    if (S.ov.on && S.ov.mode === 'side') { S.ov.mode = 'normal'; toggleOv(); syncViewMenu(); return; }
+    if (S.videos.filter(v => v.id !== S.cur).length === 0) { say('並べるには動画が2本以上必要です'); return; }
+    S.ov.mode = 'side';
+    if (!S.ov.on) toggleOv(); else { renderOvPanel(); ovApply(); save(); }
+    syncViewMenu(); say('2画面で並べています（右の動画はパネルで選べます。ずらしで位置合わせ）');
+  }
+
+  // ================= Maya 用の書き出し（キーの一覧＋ポーズ画像） =================
+  // zip は自前で作る（圧縮なし）。外部の道具や通信は使わない
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = (u) => { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function makeZip(files) {   // files: [{ name, data: Uint8Array }]
+    const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+    const d = new Date(), dt = ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)) & 0xFFFF, dd = (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xFFFF;
+    for (const f of files) {
+      const nm = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+      h.setUint16(10, dt, true); h.setUint16(12, dd, true); h.setUint32(14, crc, true); h.setUint32(18, sz, true); h.setUint32(22, sz, true);
+      h.setUint16(26, nm.length, true); h.setUint16(28, 0, true);
+      parts.push(new Uint8Array(h.buffer), nm, f.data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true);
+      c.setUint16(12, dt, true); c.setUint16(14, dd, true); c.setUint32(16, crc, true); c.setUint32(20, sz, true); c.setUint32(24, sz, true);
+      c.setUint16(28, nm.length, true); c.setUint32(42, off, true);
+      cen.push(new Uint8Array(c.buffer), nm);
+      off += 30 + nm.length + sz;
+    }
+    const cs = cen.reduce((a, u) => a + u.length, 0), e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cs, true); e.setUint32(16, off, true);
+    return new Blob([...parts, ...cen, new Uint8Array(e.buffer)], { type: 'application/zip' });
+  }
+  const b64u8 = (url) => { const s = atob(url.slice(url.indexOf(',') + 1)), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+  async function exportMaya() {
+    const box = document.createElement('div'); box.style.marginTop = '8px'; box.style.lineHeight = '2';
+    box.innerHTML = `<label>Maya のシーンの fps：<select id="myFps"><option value="24">24 fps</option><option value="30">30 fps</option><option value="60">60 fps</option><option value="0">動画と同じ</option></select></label><br>
+      <label><input type="checkbox" id="myKeys" checked> キーとポーズのフレーム一覧（.txt）</label><br>
+      <label><input type="checkbox" id="myImgs" checked> ポーズ画像（1-01.jpg のような名前）</label>`;
+    const p = ask('Maya で使うためのファイルをまとめて書き出します（.zip）。', 'Maya 用に書き出す');
+    $('#modalText').append(box);
+    if (!(await p)) return;
+    const tf = Number(box.querySelector('#myFps').value), wantK = box.querySelector('#myKeys').checked, wantI = box.querySelector('#myImgs').checked;
+    if (!wantK && !wantI) { say('書き出す内容を選んでください'); return; }
+    const conv = (f, sf) => tf ? Math.round((f - 1) / sf * tf) + 1 : f;
+    const files = [], enc = new TextEncoder();
+    if (wantK) {
+      const L = [`ポーズ抜き出し：Maya 用フレーム一覧（${tf ? tf + 'fps に換算' : '動画と同じ fps'}）`, tf ? `換算のしかた：(動画のフレーム − 1) ÷ 動画のfps × ${tf} + 1 を四捨五入` : '', ''];
+      S.videos.forEach((v, i) => {
+        const ks = allKeys(v.id), ps = keysHere(v.id);
+        if (!ks.length && !ps.length) return;
+        L.push(`■ ${i + 1}: ${v.name}（${fmtFps(v.fps)}fps）`);
+        if (ks.length) {
+          const mk = ks.map(f => conv(f, v.fps));
+          L.push(`  キー（動画）：${ks.join(', ')}`, `  キー（Maya）：${mk.join(', ')}`);
+          if (mk.length > 1) L.push(`  間隔（Maya）：${mk.slice(1).map((f, j) => (f - mk[j]) + 'f').join(', ')}`);
+        }
+        ps.sort((a, b) => a.i - b.i || (a.k === 'tame' ? -1 : 1)).forEach(q => L.push(`  ${q.i + 1}-0${q.k === 'tame' ? 1 : 2} ${q.k === 'tame' ? 'タメ' : 'ヒット'}：動画 ${q.f} → Maya ${conv(q.f, v.fps)}`));
+        L.push('');
+      });
+      if (L.length <= 3) L.push('（キーもポーズもまだありません）');
+      files.push({ name: 'フレーム一覧.txt', data: enc.encode('﻿' + L.join('\r\n')) });
+    }
+    if (wantI) S.motions.forEach((m, i) => ['tame', 'hit'].forEach((k, j) => { const q = m[k]; if (q?.img) files.push({ name: `${i + 1}-0${j + 1}.${q.img.startsWith('data:image/png') ? 'png' : 'jpg'}`, data: b64u8(q.img) }); }));
+    if (files.length === (wantK ? 1 : 0) && wantI && !wantK) { say('登録したポーズがありません'); return; }
+    const ok = await saveFile(`Maya用_${S.day}日目.zip`, makeZip(files));
+    if (ok) say(`Maya 用のファイルを書き出しました（${files.length}個）`);
+  }
+
   // ================= 使い方ガイド =================
   const gSecs = [...document.querySelectorAll('#gMain section')];
   $('#gNav').innerHTML = gSecs.map((s, i) => `<button data-i="${i}">${esc(s.querySelector('h2').textContent.replace(/：.*/, ''))}</button>`).join('');
@@ -5292,6 +5716,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
 
   // ================= 起動 =================
   if (!S.fb) initRounds({ notes: S.notes });
+  syncViewMenu();
   window.__pe = { S, frame, selSt: () => selSt(), corners: (s) => corners(s), pics };   // 動作確認用（中身の参照のみ）
   setFpsSelect(30); applyLayout(); syncToggles(); applyFlip(); setTool('select'); say('動画を追加してください（複数まとめて読み込めます）');
   renderVideos(); render(); renderFB(); renderLayers(); syncUI();
