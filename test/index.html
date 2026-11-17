@@ -3740,10 +3740,10 @@ If you want to offset all timestamps of a track such that the first one is zero,
       const f = frame();
       if (f < v.rStart || f >= v.rEnd) video.currentTime = (v.rStart - 0.5) / fps();
       video.play(); watchFrames();
-    } else video.pause();
+    } else pauseExact();
   }
   video.addEventListener('play', () => { $('#playIco').innerHTML = ICO_PAUSE; ghostHide(); tick(); });
-  video.addEventListener('pause', () => { if (!ovid.paused) ovid.pause(); if (stepPlay || looping) return; $('#playIco').innerHTML = ICO_PLAY; if (has()) { V().frame = frame(); update(); save(); ghostRefresh(); } });
+  video.addEventListener('pause', () => { if (!ovid.paused) ovid.pause(); if (stepPlay || looping) return; $('#playIco').innerHTML = ICO_PLAY; if (has()) { settleFrame(); V().frame = frame(); update(); save(); ghostRefresh(); } });
   video.addEventListener('seeked', () => update());
   video.addEventListener('ended', () => { const v = V(); if (!v || looping) return; loopBack(0); });
   // ---- 再生範囲でループ：範囲の最後のフレームが表示された瞬間に止め、1コマ分待ってから先頭へ ----
@@ -3759,9 +3759,21 @@ If you want to offset all timestamps of a track such that the first one is zero,
       video.play().then(() => { looping = false; watchFrames(); }).catch(() => { looping = false; });
     }, wait);
   }
+  // 止めたとき、画面に出ている絵とフレーム番号を必ずそろえる（ペンや登録が前後のコマにずれないように）
+  let lastMT = null;   // 最後に画面に出たコマの時刻
+  function settleFrame() {
+    if (!has() || !video.paused) return;
+    const fp = fps(), cur = video.currentTime, onCenter = Math.abs((cur * fp) % 1 - 0.5) < 0.02;
+    if (onCenter) { lastMT = null; return; }   // すでにコマの真ん中（goto などで合わせ済み）
+    const shown = lastMT != null && Math.abs(lastMT - cur) < 0.5 ? lastMT : cur;
+    const f = Math.max(1, Math.min(total(), Math.floor(shown * fp + 1e-3) + 1));
+    video.currentTime = (f - 0.5) / fp; V().frame = f; lastMT = null;
+  }
+  function pauseExact() { if (!video.paused) video.pause(); settleFrame(); }
   function watchFrames() {
     if (!HAS_RVFC) return;
     video.requestVideoFrameCallback((now, meta) => {
+      lastMT = meta.mediaTime;
       if (video.paused || !has() || looping) return;
       const v = V(), f = Math.floor(meta.mediaTime * fps() + 1e-3) + 1;
       if (f >= v.rEnd || f < v.rStart) { loopBack(f >= v.rEnd ? 1000 / (fps() * video.playbackRate) : 0); return; }
@@ -3772,7 +3784,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (video.paused || !has()) return;
     const v = V();
     if (!HAS_RVFC && video.currentTime >= (v.rEnd - 0.5) / fps()) { loopBack(1000 / (fps() * video.playbackRate)); return; }   // 古いブラウザ用
-    update(); ovFollow(); requestAnimationFrame(tick);
+    update(HAS_RVFC && lastMT != null && Math.abs(lastMT - video.currentTime) < 0.5 ? Math.min(total(), Math.floor(lastMT * fps() + 1e-3) + 1) : frame()); ovFollow(); requestAnimationFrame(tick);   // 再生中も、画面に出ているコマのペンを出す
   }
   $('#bPlay').onclick = togglePlay;
   $('#bPrevF').onclick = () => step(-1); $('#bNextF').onclick = () => step(1);
@@ -4312,7 +4324,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (e.pointerType === 'pen' && !penSeen) { penSeen = true; $('#penPrT').textContent = '筆圧 ✓'; $('#penPrL').title = 'ペンタブレットを検出しました。筆圧で太さが変わります'; say('ペンタブレットを検出しました（筆圧で線の太さが変わります）'); }
     const L = activeLayer();
     if (!L.vis) { say(`レイヤー「${L.name}」は非表示なので描けません（目のアイコンで表示してください）`); return; }
-    if (!video.paused) video.pause();
+    pauseExact();
     try { draw.setPointerCapture(e.pointerId); } catch {}
     const [x, y] = toNorm(e), p = pressureOf(e);
     const f = frame();
@@ -4490,7 +4502,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (!mode) { const hit = picAt(x, y); if (hit) { st = hit; mode = 'move'; sel = { vid: S.cur, f: frame(), st }; } }
     if (!mode) { if (sel) { sel = null; paintDrawing(false); } return; }
     e.preventDefault(); e.stopPropagation();
-    if (!video.paused) video.pause();
+    pauseExact();
     try { vp.setPointerCapture(e.pointerId); } catch {}
     const a = { x: st.x, y: st.y, w: st.w, h: st.h };
     let ax = 0, ay = 0;
@@ -4816,7 +4828,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   // ================= ポーズ =================
   function capture(kind) {
     if (!has() || !video.videoWidth) { say('先に動画を追加してください'); return; }
-    video.pause();
+    pauseExact();
     const m = S.motions[S.current];
     stopStep();
     const s = Math.min(1, 1280 / video.videoWidth);
@@ -5642,7 +5654,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   anno.addEventListener('pointerdown', e => {
     if (!has() || kDown || spaceDown) return;
     e.preventDefault(); e.stopPropagation();
-    if (!video.paused) video.pause();
+    pauseExact();
     const f = frame(), [x, y] = toNorm(e);
     if (S.tool === 'arc') {
       const a = curArc(e.button === 0);
