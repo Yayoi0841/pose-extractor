@@ -130,6 +130,7 @@
   .vitem .vn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .vitem .vm { color: var(--sub); font-size: 11px; }
   .vitem.active .vm { color: #dde8f0; }
+  .vitem .btw { flex: none; margin-right: 16px; height: 20px; padding: 0 6px; font-size: 10px; color: #9fd0ff; white-space: nowrap; }
   .vk { color: #ffb3b3; } .vd { color: #ffd27a; } .vf { color: #9fd0ff; }
   .vitem .x { position: absolute; right: 3px; top: 3px; display: none; }
   .vitem:hover .x { display: inline-block; }
@@ -716,6 +717,7 @@
 <li>サブ動画は下のバーで再生・位置・🔗同期（メインと一緒に再生）</li>
 <li><kbd>Delete</kbd> で外す／<kbd>Ctrl</kbd>+<kbd>Z</kbd> で戻す</li>
 <li><b>レイヤー</b>：左の一覧で動画の下に並ぶ。👁 で表示切替・ドラッグで重なり順・ダブルクリックで名前</li>
+<li>動画の「▼ 資料N」でレイヤーをしまう／出す（しまっても画面からは消えません）</li>
 </ul>
 <p class="tip">置いた物は全コマ共通で、ベース動画ごとに覚えます。「ペンを隠す」（<kbd>H</kbd>）では消えません。</p>
 </section>
@@ -2862,7 +2864,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       app: 'pose-extractor', version: 1, savedAt: new Date().toISOString(),
       name: S.name, day: S.day, current: S.current, cur: S.cur, motions: S.motions, notes: S.notes, pen: S.pen, eraser: S.eraser, layers: S.layers, layer: S.layer, ov: S.ov, flip: S.flip, keys: S.keys, stepped: S.stepped, ghost: S.ghost, groups: S.groups, top: S.top, board: S.board, arcs: S.arcs, meas: S.meas, guides: S.guides, onion: S.onion, keyGaps: S.keyGaps, follow: S.follow, track: S.track, followSm: S.followSm, fbPrev: S.fbPrev,
       fbr: S.fb ? { cur: S.fb.cur, rounds: S.fb.rounds, store: Object.fromEntries(Object.entries(S.fb.store).filter(([k]) => Number(k) !== S.fb.cur)) } : null,
-      videos: S.videos.map(v => ({ g: v.g, still: v.still, view: v === V() && has() && v.ready ? curView() : v.view, id: v.id, name: v.name, size: v.size, fp: v.fp, fps: v.fps, fpsSrc: v.fpsSrc, frame: v.frame, rStart: v.rStart, rEnd: v.rEnd, dur: v.dur, thumb: v.thumb })),
+      videos: S.videos.map(v => ({ g: v.g, still: v.still, bClosed: v.bClosed || undefined, view: v === V() && has() && v.ready ? curView() : v.view, id: v.id, name: v.name, size: v.size, fp: v.fp, fps: v.fps, fpsSrc: v.fpsSrc, frame: v.frame, rStart: v.rStart, rEnd: v.rEnd, dur: v.dur, thumb: v.thumb })),
     };
   }
   // ---- 作業（セッション）ごとに保存 ----
@@ -3177,7 +3179,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const o = { ...d };
     o.name = sStr(d.name, 60); o.day = Math.round(sNum(d.day, 1, 1, 9999)); o.cur = d.cur == null ? null : sStr(d.cur, 400);
     o.videos = (Array.isArray(d.videos) ? d.videos : []).filter(v => v && typeof v.id === 'string').slice(0, 2000).map(v => {
-      const x = { id: sStr(v.id, 400), name: sStr(v.name, 260), size: sNum(v.size, 0, 0, 1e13), fps: sNum(v.fps, 30, 1, 240), fpsSrc: sStr(v.fpsSrc, 20), frame: Math.round(sNum(v.frame, 1, 1, 1e7)), rStart: Math.round(sNum(v.rStart, 1, 1, 1e7)), rEnd: v.rEnd == null ? null : Math.round(sNum(v.rEnd, 1, 1, 1e7)), dur: sNum(v.dur, 0, 0, 1e6), thumb: okImg(v.thumb) };
+      const x = { bClosed: v.bClosed === true || undefined, id: sStr(v.id, 400), name: sStr(v.name, 260), size: sNum(v.size, 0, 0, 1e13), fps: sNum(v.fps, 30, 1, 240), fpsSrc: sStr(v.fpsSrc, 20), frame: Math.round(sNum(v.frame, 1, 1, 1e7)), rStart: Math.round(sNum(v.rStart, 1, 1, 1e7)), rEnd: v.rEnd == null ? null : Math.round(sNum(v.rEnd, 1, 1, 1e7)), dur: sNum(v.dur, 0, 0, 1e6), thumb: okImg(v.thumb) };
       if (typeof v.fp === 'string' && /^[0-9a-f]{1,64}$/.test(v.fp)) x.fp = v.fp;
       if (sId(v.g)) x.g = v.g;
       if (v.still) x.still = true;
@@ -3502,7 +3504,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   function toggleGroup(gid, open) { const g = grp(gid); if (!g) return; g.open = open ?? !g.open; renderVideos(); save(); }
   function vRow(v, i) {
-    const keys = countKeys(v.id), fb = fbFrames(v.id).length;
+    const keys = countKeys(v.id), fb = fbFrames(v.id).length, nb = S.board?.[v.id]?.length || 0;
     const el = document.createElement('div');
     el.className = 'vitem' + (v.g ? ' in' : '') + (v.id === S.cur ? ' active' : '') + (v.url ? '' : ' offline');
     el.draggable = true; el.dataset.id = v.id; el.title = 'ドラッグで並べ替え・フォルダーへ';
@@ -3511,9 +3513,11 @@ If you want to offset all timestamps of a track such that the first one is zero,
     el.innerHTML = `<div class="vt">${v.thumb ? `<img src="${esc(v.thumb)}" alt="">` : ''}</div><span class="num"${v.g ? ' style="left:18px"' : ''}>${i + 1}</span>
       <div class="vi"><div class="vn" title="${esc(v.name)}">${esc(v.name)}</div>
       <div class="vm">${dupName(v) ? `<span class="vd" title="同じ名前の別の動画があります">同名・${(v.size / 1048576).toFixed(1)}MB</span> ・` : ''}${len}${keys ? ` ・<span class="vk">キー${keys}</span>` : ''}${fb ? ` ・<span class="vf">FB${fb}</span>` : ''}</div></div>
+      ${nb ? `<button class="mini btw" title="置いた資料のレイヤーを${v.bClosed ? '表示' : 'しまう'}">${v.bClosed ? '▶' : '▼'} 資料${nb}</button>` : ''}
       <button class="mini x" title="一覧から外す">×</button>`;
     el.onclick = (e) => {
       if (e.target.closest('.x')) { removeVideo(v.id); return; }
+      if (e.target.closest('.btw')) { v.bClosed = !v.bClosed; renderVideos(); save(); return; }
       if (!v.url && v.id === S.cur) { fileIn.click(); return; }
       if (v.id !== S.cur) switchTo(v.id);
     };
@@ -3544,9 +3548,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
     vList.innerHTML = '';
     const idx = new Map(S.videos.map((v, i) => [v, i]));
     S.top.forEach(tok => {
-      if (!isG(tok)) { const v = S.videos.find(x => x.id === tok); if (v) { vList.appendChild(vRow(v, idx.get(v))); bRows(v).forEach(r => vList.appendChild(r)); } return; }
+      if (!isG(tok)) { const v = S.videos.find(x => x.id === tok); if (v) { vList.appendChild(vRow(v, idx.get(v))); if (!v.bClosed) bRows(v).forEach(r => vList.appendChild(r)); } return; }
       const g = grp(tok.slice(2)); vList.appendChild(gRow(g));
-      if (g.open) members(g.id).forEach(v => { vList.appendChild(vRow(v, idx.get(v))); bRows(v).forEach(r => vList.appendChild(r)); });
+      if (g.open) members(g.id).forEach(v => { vList.appendChild(vRow(v, idx.get(v))); if (!v.bClosed) bRows(v).forEach(r => vList.appendChild(r)); });
     });
     renderTabs();
   }
