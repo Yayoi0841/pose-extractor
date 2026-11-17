@@ -390,6 +390,7 @@
         <hr>
         <button data-act="exportPptx">パワポを書き出す (.pptx)</button>
         <button data-act="exportFrame">今のフレームを画像で保存 (.png)<span>Ctrl+Shift+S</span></button>
+        <button data-act="exportMp4">MP4 で書き出す（ペン・メモ・画像ごと）…</button>
         <button data-act="exportMaya">Maya 用に書き出す（フレーム一覧・ポーズ画像）…</button>
         <hr>
         <button data-act="storeVideos" id="mStore">✓ 動画もこのPCのブラウザに保存</button>
@@ -683,6 +684,7 @@
 <li><b>パワポ</b>：「ファイル → パワポを書き出す」（日目を聞かれます）</li>
 <li><b>登録の確認・やり直し</b>：「表示 → ポーズ一覧」</li>
 <li><b>Maya用</b>：「ファイル → Maya 用に書き出す」（フレーム一覧と 1-01.jpg など）</li>
+<li><b>動画（MP4）</b>：「ファイル → MP4 で書き出す」。ペン・メモ・置いた画像やサブ動画・軌道をそのまま焼き込みます。FBのコマは数秒止めて見せられます（音は入りません）</li>
 <li>タイムスライダーにキー間のコマ数（6f など）が出ます</li>
 </ul>
 </section>
@@ -5015,6 +5017,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     newWork: () => newWork(),
     keepDays: () => setKeepDays(),
     exportMaya: () => exportMaya(),
+    exportMp4: () => exportMp4().catch(err => { mp4Busy = false; say('MP4 を書き出せませんでした：' + err.message); }),
     gCenter: () => setGuide('center'),
     gThirds: () => setGuide('thirds'),
     onion: () => toggleOnion(),
@@ -5877,6 +5880,266 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (files.length === (wantK ? 1 : 0) && wantI && !wantK) { say('登録したポーズがありません'); return; }
     const ok = await saveFile(`Maya用_${S.day}日目.zip`, makeZip(files));
     if (ok) say(`Maya 用のファイルを書き出しました（${files.length}個）`);
+  }
+
+  // ================= MP4 で書き出す（動画＋ペン・メモ・置いた画像/動画・軌道などを焼き込む） =================
+  // すべてこのPCのブラウザの中で処理する（外部には送らない）。音は入らない
+  function annoTo(g, P, f, u) {
+    const lab = (x, y, txt, col) => {
+      g.font = `bold ${Math.round(12 * u)}px "Segoe UI", sans-serif`; const w = g.measureText(txt).width + 8 * u;
+      g.fillStyle = 'rgba(0,0,0,.65)'; g.fillRect(x, y - 9 * u, w, 18 * u); g.fillStyle = col; g.textBaseline = 'middle'; g.fillText(txt, x + 4 * u, y);
+    };
+    const gl = [...(S.guides.center ? [0.5] : []), ...(S.guides.thirds ? [1 / 3, 2 / 3] : [])];
+    if (gl.length) {
+      g.save(); g.lineWidth = u; g.setLineDash([6 * u, 4 * u]); g.strokeStyle = 'rgba(0,229,255,.75)';
+      gl.forEach(t => {
+        let [x0, y0] = P(t, 0), [x1, y1] = P(t, 1); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+        [x0, y0] = P(0, t); [x1, y1] = P(1, t); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+      });
+      g.restore();
+    }
+    arcsOf().forEach(a => {
+      const fs = Object.keys(a.p).map(Number).sort((x, y) => x - y); if (!fs.length) return;
+      const pts = fs.map(k => P(a.p[k][0], a.p[k][1]));
+      const path = () => {
+        g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+        for (let j = 0; j < pts.length - 1; j++) {
+          const p0 = pts[j - 1] || pts[j], p1 = pts[j], p2 = pts[j + 1], p3 = pts[j + 2] || p2;
+          g.bezierCurveTo(p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6, p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6, p2[0], p2[1]);
+        }
+      };
+      g.save(); g.lineJoin = g.lineCap = 'round';
+      g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 4 * u; path(); g.stroke(); g.strokeStyle = a.c; g.lineWidth = 2 * u; path(); g.stroke();
+      pts.forEach((p, j) => {
+        const cur = fs[j] === f;
+        g.beginPath(); g.arc(p[0], p[1], (cur ? 5.5 : 3) * u, 0, Math.PI * 2); g.fillStyle = a.c; g.fill();
+        g.lineWidth = (cur ? 2 : 1) * u; g.strokeStyle = cur ? '#fff' : 'rgba(0,0,0,.7)'; g.stroke();
+      });
+      g.restore();
+    });
+    const degs = [];
+    measOf(f).forEach((l, i) => {
+      const a = P(l[0], l[1]), b = P(l[2], l[3]), d = lineDeg(a, b); degs.push(d);
+      g.save(); g.lineCap = 'round';
+      g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 4 * u; g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke();
+      g.strokeStyle = '#fff'; g.lineWidth = 2 * u; g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke();
+      [a, b].forEach(p => { g.beginPath(); g.arc(p[0], p[1], 3 * u, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill(); });
+      lab(b[0] + 8 * u, b[1], `${Math.abs(d).toFixed(1)}°`, '#fff');
+      g.restore();
+      if (i > 0) { let gg = Math.abs(degs[i] - degs[i - 1]); if (gg > 90) gg = 180 - gg; lab((a[0] + b[0]) / 2 + 8 * u, (a[1] + b[1]) / 2 + 16 * u, `前の線との差 ${gg.toFixed(1)}°`, '#ffd400'); }
+    });
+  }
+  let mp4Busy = false;
+  async function exportMp4() {
+    if (mp4Busy) return;
+    if (!has() || !video.videoWidth) { say('先に動画を追加してください'); return; }
+    if (!window.VideoEncoder || !window.VideoFrame || !window.Mp4Muxer) { say('このブラウザは MP4 の書き出しに対応していません（Chrome / Edge の最新版を使ってください）'); return; }
+    video.pause(); stopStep();
+    const v = V(), F = fps(), T = total(), rs = Math.max(1, v.rStart || 1), re = Math.min(T, v.rEnd || T);
+    const box = document.createElement('div'); box.style.marginTop = '8px'; box.style.lineHeight = '2';
+    box.innerHTML = `<label>範囲：<select id="xRange">${rs > 1 || re < T ? `<option value="r">再生範囲（${rs}〜${re}）</option>` : ''}<option value="a">全体（1〜${T}）</option></select></label><br>
+      <label>FBのあるコマ：<select id="xHold"><option value="2">2秒止めて見せる</option><option value="1">1秒止めて見せる</option><option value="3">3秒止めて見せる</option><option value="0">止めない（1秒だけ表示）</option></select></label><br>
+      <label><input type="checkbox" id="xPen"${fbHidden ? '' : ' checked'}> ペン</label>　<label><input type="checkbox" id="xMemo"${memoHidden ? '' : ' checked'}> メモ</label>　<label><input type="checkbox" id="xBoard" checked> 置いた画像・サブ動画</label><br>
+      <label><input type="checkbox" id="xAnno" checked> 軌道・角度・補助線</label>　<label><input type="checkbox" id="xNum" checked> フレーム番号</label>`;
+    const pr = ask('今の動画に、描いたものを重ねて MP4 にします。\nこのPCの中だけで処理します（音は入りません）。', 'MP4 で書き出す');
+    $('#modalText').append(box);
+    if (!(await pr)) return;
+    const q = (id) => box.querySelector(id);
+    const all = q('#xRange').value === 'a', f0 = all ? 1 : rs, f1 = all ? T : re, hold = Number(q('#xHold').value);
+    const oPen = q('#xPen').checked, oMemo = q('#xMemo').checked, oBoard = q('#xBoard').checked, oAnno = q('#xAnno').checked, oNum = q('#xNum').checked;
+
+    // ---- 画面の大きさ：ベース動画＋置いた物が全部入る範囲 ----
+    const VW = video.videoWidth, VH = video.videoHeight;
+    const items = oBoard ? boardOf().filter(it => !it.hide && (it.t === 'i' || S.videos.find(x => x.id === it.v)?.url)) : [];
+    await Promise.all(items.filter(it => it.t === 'i').map(it => pic(it.k).ready));
+    const ih = (it) => it.h ?? it.w * 9 / 16;
+    let bx0 = 0, by0 = 0, bx1 = 1, by1 = 1;
+    items.forEach(it => { bx0 = Math.min(bx0, it.x); by0 = Math.min(by0, it.y); bx1 = Math.max(bx1, it.x + it.w); by1 = Math.max(by1, it.y + ih(it)); });
+    if (items.length && (bx0 < 0 || by0 < 0 || bx1 > 1 || by1 > 1)) { const pd = 0.02; bx0 -= pd; by0 -= pd; bx1 += pd; by1 += pd; }
+    const rawW = (bx1 - bx0) * VW, rawH = (by1 - by0) * VH;
+    const sc = Math.min(1, 3840 / Math.max(rawW, rawH), Math.sqrt(8294400 / (rawW * rawH)));
+    const W = Math.max(2, Math.round(rawW * sc / 2) * 2), H = Math.max(2, Math.round(rawH * sc / 2) * 2);
+    const vw = VW * sc * W / (rawW * sc), vh = VH * sc * H / (rawH * sc);   // 偶数に丸めた分も合わせる
+    const offX = -bx0 * vw, offY = -by0 * vh;
+    const vxOut = S.flip ? W - offX - vw : offX;   // 反転後の動画の左端
+    const P = (x, y) => [S.flip ? W - (offX + x * vw) : offX + x * vw, offY + y * vh];
+
+    // ---- 何コマ目にどのFBを出すか ----
+    const fbs = fbFrames(S.cur).filter(f => { const n = note(S.cur, f); return (oPen && n.strokes.length) || (oMemo && n.memo); });
+    const fbSet = new Set(fbs);
+    const fbFor = (f) => {
+      if (!fbs.length) return null;
+      if (hold > 0) return fbSet.has(f) ? f : null;
+      let g = null; for (const x of fbs) { if (x <= f) g = x; else break; }
+      return g != null && f - g < Math.max(1, Math.round(F)) ? g : null;
+    };
+    const outCount = (f1 - f0 + 1) + (hold > 0 ? fbs.filter(f => f >= f0 && f <= f1).length * Math.round(hold * F) : 0);
+    if (outCount / F > 600 && !(await ask(`書き出す長さが約${Math.round(outCount / F / 60)}分あります。時間とメモリを多く使いますが続けますか？`, 'MP4 で書き出す'))) return;
+    for (const f of fbs) await picsReady(note(S.cur, f).strokes);
+
+    // ---- 書き出し用の動画（画面の表示とは別に読み込む） ----
+    const hideBox = document.createElement('div');
+    hideBox.style.cssText = 'position:fixed;right:0;bottom:0;width:2px;height:2px;overflow:hidden;opacity:.01;pointer-events:none;';
+    document.body.append(hideBox);
+    const mkVid = (url) => { const el = document.createElement('video'); Object.assign(el, { muted: true, playsInline: true, preload: 'auto' }); el.style.cssText = 'width:2px;height:2px'; el.src = url; hideBox.append(el); return el; };
+    const loaded = (el) => el.readyState >= 1 ? Promise.resolve() : new Promise(r => { el.addEventListener('loadedmetadata', r, { once: true }); el.addEventListener('error', r, { once: true }); setTimeout(r, 8000); });
+    const src = mkVid(v.url);
+    const subs = items.filter(it => it.t === 'v').map(it => ({ it, el: mkVid(S.videos.find(x => x.id === it.v).url) }));
+    const seekEl = (el, t) => new Promise(r => {
+      if (el.readyState >= 2 && Math.abs(el.currentTime - t) < 1e-4) return r();
+      let done = false; const fin = () => { if (done) return; done = true; el.removeEventListener('seeked', fin); r(); };
+      el.addEventListener('seeked', fin); setTimeout(fin, 6000); el.currentTime = t;
+    });
+    const subT = (s, f) => { const d = s.el.duration || 0, t0 = s.it.t0 || 0; if (s.it.sync === false || !d) return Math.min(t0, Math.max(0, d - 0.01)); return (t0 + (f - f0) / F) % d; };
+
+    // ---- 進み具合（やめるボタン付き） ----
+    let cancel = false;
+    ask('', 'MP4 を書き出しています', false, true).then(() => { cancel = true; });
+    $('#mYes').textContent = 'やめる';
+    const pg = document.createElement('div'); $('#modalText').append(pg);
+    const showPg = (i) => { pg.textContent = `${Math.min(100, Math.floor(i / outCount * 100))}%（${i} / ${outCount} コマ）\nこのタブを開いたままお待ちください。`; };
+    showPg(0);
+    mp4Busy = true;
+
+    // ---- エンコーダー ----
+    let enc = null, mux = null, err = null;
+    const br = Math.round(Math.min(60e6, Math.max(4e6, W * H * F * 0.15)));
+    for (const [codec, m] of [['avc1.640034', 'avc'], ['avc1.4d0034', 'avc'], ['avc1.42003e', 'avc'], ['vp09.00.50.08', 'vp9']]) {
+      const cfg = { codec, width: W, height: H, framerate: F, bitrate: br, bitrateMode: 'variable', latencyMode: 'quality' };
+      if (m === 'avc') cfg.avc = { format: 'avc' };
+      const sup = await VideoEncoder.isConfigSupported(cfg).catch(() => null);
+      if (!sup?.supported) continue;
+      mux = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: m, width: W, height: H, frameRate: F }, fastStart: 'in-memory' });
+      enc = new VideoEncoder({ output: (ch, meta) => mux.addVideoChunk(ch, meta), error: e => err = e });
+      enc.configure(cfg); break;
+    }
+    const cleanup = () => { mp4Busy = false; [src, ...subs.map(s => s.el)].forEach(el => { el.pause(); el.removeAttribute('src'); el.load(); }); hideBox.remove(); $('#modal').classList.add('hidden'); };
+    if (!enc) { cleanup(); say('このブラウザでは MP4 を作れませんでした（Chrome / Edge の最新版を使ってください）'); return; }
+
+    // ---- 1コマを組み立てる ----
+    const base = document.createElement('canvas'); base.width = W; base.height = H; const bg = base.getContext('2d');
+    const out = document.createElement('canvas'); out.width = W; out.height = H; const og = out.getContext('2d');
+    const lc = document.createElement('canvas'); lc.width = W; lc.height = H; const lx = lc.getContext('2d');
+    const scr = document.createElement('canvas'); scr.width = W; scr.height = H;
+    const mm = { ox: offX / dpr, oy: offY / dpr, sw: vw / dpr, sh: vh / dpr };
+    const fsz = Math.max(14, Math.round(vh / 36)), u = Math.max(1, vh / 720);
+    function compose(f, mainSrc, subSrc) {
+      bg.fillStyle = '#1b1b1b'; bg.fillRect(0, 0, W, H);
+      bg.drawImage(mainSrc, offX, offY, vw, vh);
+      items.forEach(it => {
+        const x = offX + it.x * vw, y = offY + it.y * vh, w = it.w * vw, h = ih(it) * vh;
+        try {
+          if (it.t === 'i') { const im = pics.get(it.k)?.img; if (im) bg.drawImage(im, x, y, w, h); }
+          else { const s = subSrc.get(it.id); if (s) bg.drawImage(s, x, y, w, h); else { bg.fillStyle = '#000'; bg.fillRect(x, y, w, h); } }
+        } catch {}
+      });
+      const g = fbFor(f), nt = g != null ? note(S.cur, g) : null;
+      if (oPen && nt?.strokes.length) {
+        bg.save(); bg.beginPath(); bg.rect(offX, offY, vw, vh); bg.clip();   // 動画の外には描かない（画面と同じ）
+        S.layers.forEach(L => {
+          if (!L.vis) return;
+          const ss = strokesOf(nt, L.id); if (!ss.length) return;
+          lx.clearRect(0, 0, W, H); ss.forEach(st => drawStroke(lx, st, mm, scr));
+          bg.globalAlpha = L.op / 100; bg.drawImage(lc, 0, 0); bg.globalAlpha = 1;
+        });
+        bg.restore();
+      }
+      og.setTransform(1, 0, 0, 1, 0, 0);
+      if (S.flip) { og.translate(W, 0); og.scale(-1, 1); }
+      og.drawImage(base, 0, 0); og.setTransform(1, 0, 0, 1, 0, 0);
+      if (oAnno) annoTo(og, P, f, u);
+      og.font = `600 ${fsz}px "Segoe UI", "Yu Gothic UI", sans-serif`; og.textBaseline = 'top';
+      if (oNum) { const tag = `F${f}`; og.fillStyle = 'rgba(0,0,0,.6)'; og.fillRect(vxOut, offY, og.measureText(tag).width + fsz, fsz * 1.6); og.fillStyle = '#fff'; og.fillText(tag, vxOut + fsz / 2, offY + fsz * 0.3); }
+      if (oMemo && nt?.memo) {
+        const lines = [], maxW = vw * 0.6;
+        nt.memo.split('\n').forEach(par => { let s = ''; for (const ch of par) { if (og.measureText(s + ch).width > maxW) { lines.push(s); s = ch; } else s += ch; } lines.push(s); });
+        const lh = fsz * 1.4, bh = lines.length * lh + fsz, bw = Math.min(maxW, Math.max(...lines.map(l => og.measureText(l).width))) + fsz * 1.5;
+        const x = vxOut + fsz / 2, y = offY + vh - bh - fsz / 2;
+        og.fillStyle = 'rgba(30,30,30,.8)'; og.fillRect(x, y, bw, bh);
+        og.fillStyle = '#e8c547'; og.fillRect(x, y, Math.max(3, fsz / 5), bh);
+        og.fillStyle = '#f2f2f2'; lines.forEach((l, i) => og.fillText(l, x + fsz * 0.6, y + fsz / 2 + i * lh));
+      }
+    }
+    let oi = 0;
+    const gop = Math.max(1, Math.round(F * 2));
+    async function emit(f) {
+      const n = 1 + (hold > 0 && fbSet.has(f) ? Math.round(hold * F) : 0);
+      for (let r = 0; r < n; r++) {
+        const ts = Math.round(oi * 1e6 / F), du = Math.round((oi + 1) * 1e6 / F) - ts;
+        const fr = new VideoFrame(out, { timestamp: ts, duration: du });
+        enc.encode(fr, { keyFrame: oi % gop === 0 }); fr.close(); oi++;
+        while (enc.encodeQueueSize > 6 && !err) await new Promise(r2 => setTimeout(r2, 4));
+      }
+      showPg(oi);
+    }
+    // 1コマずつ移動して取る（確実だが遅い）
+    async function bySeek(f) {
+      await seekEl(src, (f - 0.5) / F);
+      await Promise.all(subs.map(s => seekEl(s.el, subT(s, f))));
+      compose(f, src, new Map(subs.map(s => [s.it.id, s.el])));
+      await emit(f);
+    }
+    // 再生しながら取る（速い）。取りこぼしたら止めて、そのコマからは移動して取る
+    async function byPlay(from) {
+      const fq = []; let stop = false, last = from - 1, wake = null;
+      await Promise.all(subs.map(s => seekEl(s.el, subT(s, from))));
+      const cb = (now, md) => {
+        if (stop) return;
+        const f = Math.round(md.mediaTime * F) + 1;
+        if (f === last + 1) {
+          try { fq.push({ f, m: new VideoFrame(src), s: subs.map(s => { try { return [s.it.id, new VideoFrame(s.el)]; } catch { return [s.it.id, null]; } }) }); last = f; }
+          catch { stop = true; }
+        } else if (f > last + 1) stop = true;
+        if (fq.length > 5 || last >= f1) stop = true;
+        if (stop) { src.pause(); subs.forEach(s => s.el.pause()); } else src.requestVideoFrameCallback(cb);
+        wake?.();
+      };
+      src.requestVideoFrameCallback(cb);
+      subs.forEach(s => { if (s.it.sync !== false) s.el.play().catch(() => {}); });
+      await src.play().catch(() => { stop = true; });
+      let done = from - 1;
+      while (!cancel && !err) {
+        if (fq.length) {
+          const it = fq.shift();
+          compose(it.f, it.m, new Map(it.s.map(([id, fr]) => [id, fr || subs.find(s => s.it.id === id).el])));
+          it.m.close(); it.s.forEach(([, fr]) => fr?.close());
+          await emit(it.f); done = it.f; continue;
+        }
+        if (stop) break;
+        const got = await new Promise(r => { wake = () => r(true); setTimeout(() => r(false), 1500); }); wake = null;
+        if (!got && !fq.length) { stop = true; src.pause(); subs.forEach(s => s.el.pause()); }
+      }
+      stop = true; src.pause(); subs.forEach(s => s.el.pause());
+      fq.forEach(it => { it.m.close(); it.s.forEach(([, fr]) => fr?.close()); });
+      return done;
+    }
+    try {
+      await loaded(src); await Promise.all(subs.map(s => loaded(s.el)));
+      if (!src.duration) throw new Error('動画を読み込めませんでした');
+      let f = f0, slow = 0;
+      const canPlay = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+      while (f <= f1 && !cancel && !err) {
+        await bySeek(f); f++;
+        if (f > f1) break;
+        if (canPlay && slow <= 0) {
+          const d = await byPlay(f);
+          if (d - f + 1 < 3) slow = 30;   // うまく再生できないときは、しばらく1コマずつ
+          f = d + 1;
+        } else slow--;
+      }
+      if (err) throw err;
+      if (cancel) { try { enc.close(); } catch {} cleanup(); say('MP4 の書き出しをやめました'); return; }
+      showPg(oi);
+      await enc.flush(); enc.close(); mux.finalize();
+      const blob = new Blob([mux.target.buffer], { type: 'video/mp4' });
+      cleanup();
+      const nm = (S.name || v.name.replace(/\.[^.]+$/, '')).replace(/[\\/:*?"<>|]/g, '_').slice(0, 50);
+      const fn = `${nm}_FB_${f0}-${f1}.mp4`;
+      if (await saveFile(fn, blob)) say(`MP4 を保存しました：${fn}（${W}×${H}・${(blob.size / 1048576).toFixed(1)}MB。社外には出さないでください）`);
+    } catch (e) {
+      try { enc.close(); } catch {}
+      cleanup(); say('MP4 を書き出せませんでした：' + (e?.message || e));
+    }
   }
 
   // ================= サブ資料ボード（ベース動画のまわりに画像・動画を自由に置く） =================
