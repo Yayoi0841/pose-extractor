@@ -392,9 +392,10 @@
   .tsctl > .icon { background: transparent; } .tsctl > .icon:hover { background: #4a4a4a; }
   .panel .ptitle { background: var(--bg3); }
   /* ビューポート：Figma のキャンバス（ドットの方眼）。拡大・移動に合わせてドットも動く */
-  #viewport { --cv: #e6e6e6; --dot: rgba(0,0,0,.2); background: var(--cv); background-image: radial-gradient(circle, var(--dot) 1px, transparent 1.3px); background-size: 24px 24px; }
-  body.cvDark #viewport { --cv: #1e1e1e; --dot: rgba(255,255,255,.14); }
-  #frameBox { position: absolute; display: none; pointer-events: none; background: #000; box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 8px 28px rgba(0,0,0,.28); }
+  #viewport { --cv: #282828; --dot: rgba(255,255,255,.10); background: var(--cv); background-image: radial-gradient(circle, var(--dot) 1px, transparent 1.3px); background-size: 24px 24px; }
+  body.cvLight #viewport { --cv: #e6e6e6; --dot: rgba(0,0,0,.2); }
+  #frameBox { position: absolute; display: none; pointer-events: none; background: #000; box-shadow: 0 0 0 1px rgba(255,255,255,.09), 0 8px 28px rgba(0,0,0,.45); }
+  body.cvLight #frameBox { box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 8px 28px rgba(0,0,0,.28); }
   #viewport.side #frameBox { display: none !important; }
   #vpLabel, #vpHud { background: rgba(28,28,28,.78); padding: 2px 8px; border-radius: 4px; text-shadow: none; line-height: 18px; }
   #vpLabel:empty, #vpHud:empty { display: none; }
@@ -402,10 +403,10 @@
   #vpZoom button { border-radius: 4px; }
   #ovPanel, #bctl { border-radius: 8px; }
   #memoOv { border-radius: 4px; }
-  #drop { color: #555; border: 1.5px dashed #a8a8a8; border-radius: 12px; }
-  #drop #dropText span { color: #777 !important; }
+  #drop { color: #ccc; border: 1.5px dashed #5a5a5a; border-radius: 12px; }
+  #drop #dropText span { color: #999 !important; }
   #drop button { color: #eee; background: #4a4a4a; height: 26px; padding: 0 12px; } #drop button:hover { background: #5a5a5a; } #drop #pick { background: var(--hl); color: #fff; }
-  body.cvDark #drop { color: #ccc; border-color: #666; } body.cvDark #drop #dropText span { color: #999 !important; }
+  body.cvLight #drop { color: #555; border-color: #a8a8a8; } body.cvLight #drop #dropText span { color: #777 !important; }
   /* 文字ツール */
   body.texting #viewport, body.texting #viewport #draw { cursor: text; }
   #txtEd { position: absolute; z-index: 6; margin: 0; border: 1px dashed #4aa3ff; outline: none; resize: none; overflow: hidden; white-space: pre; background: transparent; font-family: "Yu Gothic UI", "Meiryo", "Segoe UI", sans-serif; line-height: 1.25; min-width: 20px; caret-color: #4aa3ff; }
@@ -445,7 +446,7 @@
     </div>
     <div class="menu" id="menuView"><button class="mi">表示</button>
       <div class="dropdown">
-        <button data-act="cvDark" id="mCvDark">　キャンバス（動画の外側）を暗くする</button>
+        <button data-act="cvLight" id="mCvLight">　キャンバス（動画の外側）を明るくする</button>
         <hr>
         <button data-act="gCenter" id="mGCenter">　補助線：中心線</button>
         <button data-act="gThirds" id="mGThirds">　補助線：三分割</button>
@@ -2898,7 +2899,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   const S = {
     videos: [], cur: null, motions: [{ tame: null, hit: null }], current: 0, day: 1,
     notes: {}, tool: 'select',
-    pen: { color: '#ff3b30', size: 6, opacity: 100, pressure: true, po: false, smooth: 40, hard: 100 }, eraser: { size: 30, hard: 100 }, text: { color: '#ffffff', size: 48, bg: 0, b: true }, cvDark: false,
+    pen: { color: '#ff3b30', size: 6, opacity: 100, pressure: true, po: false, smooth: 40, hard: 100 }, eraser: { size: 30, hard: 100 }, text: { color: '#ffffff', size: 48, bg: 0, b: true }, cvLight: false,
     layers: [{ id: 'L1', name: 'レイヤー 1', vis: true, op: 100 }], layer: 'L1',
     keys: {}, stepped: false, ghost: false, name: '', storeVideos: true, keepDays: 20, showPoses: false, groups: [], top: [], follow: false, track: {}, followSm: 0.6, fb: null, fbPrev: false,
     board: {}, arcs: {}, meas: {}, guides: { center: false, thirds: false }, onion: { on: false, n: 2 }, keyGaps: true,   // groups=[{id,name,open}] / top=一覧の最上位の並び（'g:フォルダーID' または 動画ID）
@@ -2959,7 +2960,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const keys = Object.values(d.keys || {}).reduce((n, a) => n + a.length, 0);
     return { id, name: d.name || '', savedAt: d.savedAt || new Date().toISOString(), names: (d.videos || []).map(v => v.name), poses, fb, keys, day: d.day || 1 };
   }
-  const prefs = () => ({ pen: S.pen, eraser: S.eraser, text: S.text, cvDark: S.cvDark, stepped: S.stepped, ghost: S.ghost, storeVideos: S.storeVideos, keepDays: S.keepDays, seenGuide: S.seenGuide, showPoses: S.showPoses });
+  const prefs = () => ({ pen: S.pen, eraser: S.eraser, text: S.text, cvLight: S.cvLight, stepped: S.stepped, ghost: S.ghost, storeVideos: S.storeVideos, keepDays: S.keepDays, seenGuide: S.seenGuide, showPoses: S.showPoses });
   // ---- ポーズ画像は別に1回だけ保存し、作業データ（毎回の自動保存）には参照だけを入れる ----
   // ブラウザは 64KB を超えるデータを毎回別ファイルにするため、画像を分けて自動保存のたびのファイル作成を減らす
   const imgKeyOf = new Map(), imgStored = new Set();
@@ -3327,7 +3328,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
         await tx('readwrite', st => { st.put(old, 'sess:' + id); st.put(recentIdx, 'index'); st.delete('state'); });
         if (!pf && old.pen) { Object.assign(S.pen, old.pen); Object.assign(S.eraser, old.eraser || {}); }
       }
-      if (pf) { Object.assign(S.pen, pf.pen || {}); Object.assign(S.eraser, pf.eraser || {}); S.stepped = !!pf.stepped; S.ghost = !!pf.ghost; if ('storeVideos' in pf) S.storeVideos = !!pf.storeVideos; if (Number.isFinite(pf.keepDays)) S.keepDays = pf.keepDays; S.seenGuide = !!pf.seenGuide; if ('showPoses' in pf) S.showPoses = !!pf.showPoses; const tp = pf.text; if (tp && typeof tp === 'object') { if (COLOR_RE.test(tp.color)) S.text.color = tp.color; S.text.size = sNum(tp.size, 48, 10, 240); S.text.bg = [0, 1, 2].includes(tp.bg) ? tp.bg : 0; S.text.b = tp.b !== false; } S.cvDark = !!pf.cvDark; } applyPoseVis(); applyCanvas();
+      if (pf) { Object.assign(S.pen, pf.pen || {}); Object.assign(S.eraser, pf.eraser || {}); S.stepped = !!pf.stepped; S.ghost = !!pf.ghost; if ('storeVideos' in pf) S.storeVideos = !!pf.storeVideos; if (Number.isFinite(pf.keepDays)) S.keepDays = pf.keepDays; S.seenGuide = !!pf.seenGuide; if ('showPoses' in pf) S.showPoses = !!pf.showPoses; const tp = pf.text; if (tp && typeof tp === 'object') { if (COLOR_RE.test(tp.color)) S.text.color = tp.color; S.text.size = sNum(tp.size, 48, 10, 240); S.text.bg = [0, 1, 2].includes(tp.bg) ? tp.bg : 0; S.text.b = tp.b !== false; } S.cvLight = !!pf.cvLight; } applyPoseVis(); applyCanvas();
       syncPenUI(); syncToggles(); syncStoreMenu();
       const sid = ssGet(), d = sid && recentIdx.some(r => r.id === sid) ? await unpackSnap(await tx('readonly', st => st.get('sess:' + sid))) : null;
       loaded = true;
@@ -5235,7 +5236,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     onion: () => toggleOnion(),
     onionN: () => setOnionN(),
     keyGaps: () => { S.keyGaps = !S.keyGaps; syncViewMenu(); drawTS(); save(); },
-    cvDark: () => { S.cvDark = !S.cvDark; applyCanvas(); save(); say(S.cvDark ? 'キャンバスを暗くしました' : 'キャンバスを明るくしました（Figma と同じ見た目）'); },
+    cvLight: () => { S.cvLight = !S.cvLight; applyCanvas(); save(); say(S.cvLight ? 'キャンバスを明るくしました' : 'キャンバスを暗いグレーに戻しました'); },
     side: () => toggleSide(),
     subVideo: () => pickSubVideo(),
     poseList: () => togglePoseList(),
@@ -6006,10 +6007,10 @@ If you want to offset all timestamps of a track such that the first one is zero,
     S.guides[k] = !S.guides[k]; syncViewMenu(); paintAnno(); save();
     say(`補助線（${k === 'center' ? '中心線' : '三分割'}）：${S.guides[k] ? 'オン' : 'オフ'}`);
   }
-  function applyCanvas() { document.body.classList.toggle('cvDark', !!S.cvDark); syncViewMenu(); }
+  function applyCanvas() { document.body.classList.toggle('cvLight', !!S.cvLight); syncViewMenu(); }
   function syncViewMenu() {
     const ck = (b) => b ? '✓ ' : '　';
-    $('#mCvDark').firstChild.nodeValue = ck(S.cvDark) + 'キャンバス（動画の外側）を暗くする';
+    $('#mCvLight').firstChild.nodeValue = ck(S.cvLight) + 'キャンバス（動画の外側）を明るくする';
     $('#mGCenter').firstChild.nodeValue = ck(S.guides.center) + '補助線：中心線';
     $('#mGThirds').firstChild.nodeValue = ck(S.guides.thirds) + '補助線：三分割';
     $('#mOnion').firstChild.nodeValue = ck(S.onion.on) + `オニオンスキン（前後${S.onion.n}コマ）`;
@@ -6240,8 +6241,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const mm = { ox: offX / dpr, oy: offY / dpr, sw: vw / dpr, sh: vh / dpr };
     const fsz = Math.max(14, Math.round(vh / 36)), u = Math.max(1, vh / 720);
     // 動画の外側は画面と同じ Figma 風のキャンバス（ドットの方眼）
-    const cvDark = !!S.cvDark, gap = Math.max(12, Math.round(vh / 32)), pc = document.createElement('canvas');
-    pc.width = pc.height = gap; { const x = pc.getContext('2d'); x.fillStyle = cvDark ? '#1e1e1e' : '#e6e6e6'; x.fillRect(0, 0, gap, gap); x.fillStyle = cvDark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.2)'; x.beginPath(); x.arc(0.5, 0.5, Math.max(1, gap / 22), 0, Math.PI * 2); x.fill(); }
+    const cvDark = !S.cvLight, gap = Math.max(12, Math.round(vh / 32)), pc = document.createElement('canvas');
+    pc.width = pc.height = gap; { const x = pc.getContext('2d'); x.fillStyle = cvDark ? '#282828' : '#e6e6e6'; x.fillRect(0, 0, gap, gap); x.fillStyle = cvDark ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.2)'; x.beginPath(); x.arc(0.5, 0.5, Math.max(1, gap / 22), 0, Math.PI * 2); x.fill(); }
     const cvPat = bg.createPattern(pc, 'repeat'); cvPat.setTransform?.(new DOMMatrix().translate(offX % gap, offY % gap));
     function compose(f, mainSrc, subSrc) {
       bg.fillStyle = cvPat; bg.fillRect(0, 0, W, H);
