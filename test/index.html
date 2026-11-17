@@ -60,8 +60,9 @@
   #videoPanel.thin .vi, #videoPanel.thin .ptitle .cnt { display: none; }
   #videoPanel.thin .vitem .vt { width: 100%; height: auto; aspect-ratio: 16/9; }
   /* 集中モード */
-  body.focus #app { grid-template-rows: 0 0 minmax(0,1fr) auto 0; grid-template-columns: 0 minmax(0,1fr) 0; }
-  body.focus #menubar, body.focus #shelf, body.focus #videoPanel, body.focus #sidePanel, body.focus #helpline { display: none !important; }
+  body.focus #app { grid-template-rows: 0 32px minmax(0,1fr) auto 0; grid-template-columns: 0 minmax(0,1fr) 0; }
+  body.focus #menubar, body.focus #videoPanel, body.focus #sidePanel, body.focus #helpline { display: none !important; }
+  body.focus #shelf { grid-row: 2; }   /* 集中モードでもペンの色・太さを変えられるように、ツールの段は残す */
   #focusExit { display: none; position: absolute; right: 8px; top: 40px; z-index: 6; background: rgba(40,40,40,.55); color: #ddd; padding: 4px 10px; opacity: .6; }
   #focusExit:hover { opacity: 1; background: var(--hl); }
   body.focus #focusExit { display: block; }
@@ -519,8 +520,8 @@
     <div class="pane hidden" id="paneFb">
       <div class="fbRound">
         <select id="fbRound" title="FBの回を切り替え（前の回のFBは残っています）"></select>
-        <button class="mini" id="fbNew" title="新しいFBの回を始める。今までのFBは残したまま隠れます">＋ 新しいFB</button>
-        <label title="ひとつ前の回のFB（ペン・メモ）を薄く表示"><input type="checkbox" id="fbPrev"> 前回を薄く</label>
+        <button class="mini" id="fbNew" title="新しいFBの回を始める。メモだけ新しくなり、ペンの線はそのまま残ります">＋ 新しいFB</button>
+        <label title="ひとつ前の回のメモを灰色で表示"><input type="checkbox" id="fbPrev"> 前回を薄く</label>
         <button class="mini" id="fbDel" title="この回のFBを削除">🗑</button>
       </div>
       <div class="memoBox">
@@ -676,7 +677,7 @@
 <li><b>重ねる</b>：別の動画を透かす（下の段のボタン）</li>
 <li><b>2画面</b>：「表示 → 2画面で並べる」</li>
 <li><b>補助線</b>：「表示」から中心線・三分割</li>
-<li><b>集中モード</b>：<kbd>Shift</kbd>+<kbd>Y</kbd></li>
+<li><b>集中モード</b>：<kbd>Shift</kbd>+<kbd>Y</kbd>（上のツールとペンの設定はそのまま使える）</li>
 </ul>
 </section>
 
@@ -707,9 +708,9 @@
 <section data-t="FBの回 新しいFB 前回を薄く 追加">
 <h2>追加のFBが来たら</h2>
 <ul>
-<li>FBタブの<b>＋ 新しいFB</b>：前のFBは残して隠れる</li>
+<li>FBタブの<b>＋ 新しいFB</b>：メモだけ新しくなる（ペンの線はそのまま）</li>
 <li>一覧で回を切り替え</li>
-<li><b>前回を薄く</b>：前の回を重ねて確認</li>
+<li><b>前回を薄く</b>：前の回のメモを灰色で表示</li>
 </ul>
 </section>
 
@@ -4633,10 +4634,25 @@ If you want to offset all timestamps of a track such that the first one is zero,
   // ================= FBの回（前のFBは残したまま、新しいFBを重ねていく） =================
   // S.notes ＝ 今表示している回のFB。ほかの回は S.fb.store に保管（同じレイヤーを共有）
   const today = () => { const d = new Date(); return `${d.getMonth() + 1}/${d.getDate()}`; };
+  // ペンの線は回に関係なく共通（いつも今の回のノートに入れておき、回を切り替えるときに一緒に移す）。回ごとに分かれるのはメモだけ
+  function moveStrokes(from, to) {
+    if (!from || !to || from === to) return;
+    for (const vid of Object.keys(from)) {
+      const o = from[vid];
+      for (const f of Object.keys(o)) {
+        const n = o[f]; if (!n.strokes?.length) continue;
+        const dst = ((to[vid] ||= {})[f] ||= { memo: '', strokes: [] });
+        dst.strokes.push(...n.strokes); n.strokes = [];
+        if (!n.memo) delete o[f];
+      }
+      if (!Object.keys(o).length) delete from[vid];
+    }
+  }
   function initRounds(d) {
     const fr = d.fbr;
     S.fb = { cur: fr?.cur || 1, rounds: fr?.rounds?.length ? fr.rounds : [{ id: 1, name: 'FB 1', at: today() }], store: { ...(fr?.store || {}) } };
     S.fb.store[S.fb.cur] = S.notes; S.fbPrev = !!d.fbPrev;
+    for (const r of S.fb.rounds) if (r.id !== S.fb.cur) moveStrokes(S.fb.store[r.id], S.notes);   // 前の版で回ごとに分かれていたペンも、ひとつにまとめて表示する
     renderRounds();
   }
   const allRounds = () => S.fb ? S.fb.rounds.map(r => r.id === S.fb.cur ? S.notes : (S.fb.store[r.id] ||= {})) : [S.notes];
@@ -4648,8 +4664,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function prevNote(vid, f) { const r = prevRound(); if (!r) return null; const n = S.fb.store[r.id]?.[vid]?.[f]; return n && (n.memo || n.strokes.length) ? n : null; }
   function renderRounds() {
     if (!S.fb) return;
-    const sel = $('#fbRound'), cnt = (ns) => Object.values(ns || {}).reduce((a, o) => a + Object.keys(o).length, 0);
-    sel.innerHTML = S.fb.rounds.map(r => `<option value="${r.id}"${r.id === S.fb.cur ? ' selected' : ''} title="${esc(r.at || '')} に開始">${esc(r.name)}・${cnt(r.id === S.fb.cur ? S.notes : S.fb.store[r.id])}件</option>`).join('');
+    const sel = $('#fbRound'), cnt = (ns) => Object.values(ns || {}).reduce((a, o) => a + Object.values(o).filter(n => n.memo).length, 0);
+    sel.innerHTML = S.fb.rounds.map(r => `<option value="${r.id}"${r.id === S.fb.cur ? ' selected' : ''} title="${esc(r.at || '')} に開始">${esc(r.name)}・メモ${cnt(r.id === S.fb.cur ? S.notes : S.fb.store[r.id])}件</option>`).join('');
     const first = S.fb.rounds[0]?.id === S.fb.cur;
     $('#fbPrev').checked = S.fbPrev; $('#fbPrev').disabled = first;
     $('#fbPrev').parentElement.style.opacity = first ? .45 : 1;
@@ -4661,23 +4677,26 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   function switchRound(id) {
     if (!S.fb || id === S.fb.cur) return;
-    S.fb.store[S.fb.cur] = S.notes; S.fb.cur = id; S.notes = (S.fb.store[id] ||= {});
-    roundsChanged(); say(`「${S.fb.rounds.find(r => r.id === id).name}」を表示しています`);
+    const to = (S.fb.store[id] ||= {}); moveStrokes(S.notes, to);
+    S.fb.store[S.fb.cur] = S.notes; S.fb.cur = id; S.notes = to;
+    roundsChanged(); say(`「${S.fb.rounds.find(r => r.id === id).name}」のメモを表示しています（ペンはそのまま）`);
   }
   function newRound() {
     const id = Math.max(...S.fb.rounds.map(r => r.id)) + 1;
     S.fb.rounds.push({ id, name: `FB ${S.fb.rounds.length + 1}`, at: today() });
-    S.fb.store[S.fb.cur] = S.notes; S.fb.cur = id; S.notes = S.fb.store[id] = {};
+    const to = {}; moveStrokes(S.notes, to);
+    S.fb.store[S.fb.cur] = S.notes; S.fb.cur = id; S.notes = S.fb.store[id] = to;
     roundsChanged(); setTab('fb');
-    say(`「FB ${S.fb.rounds.length}」を始めました。前のFBは残っています（上の一覧で切り替え・「前回を薄く」で重ねて確認）`);
+    say(`「FB ${S.fb.rounds.length}」を始めました。メモだけ新しくなり、ペンはそのまま残ります（前のメモは上の一覧で切り替え）`);
   }
   async function deleteRound() {
     if (!S.fb || S.fb.rounds.length <= 1) return;
-    const r = S.fb.rounds.find(x => x.id === S.fb.cur), c = Object.values(S.notes).reduce((a, o) => a + Object.keys(o).length, 0);
-    if (!(await ask(`「${r.name}」を削除しますか？${c ? `\nこの回のFB（${c}件のメモ・ペン）が消えます。元に戻せません。` : ''}\nほかの回のFBは残ります。`, 'FBの回を削除'))) return;
-    const i = S.fb.rounds.indexOf(r); S.fb.rounds.splice(i, 1); delete S.fb.store[r.id];
-    const nx = S.fb.rounds[Math.min(i, S.fb.rounds.length - 1)];
-    S.fb.cur = nx.id; S.notes = (S.fb.store[nx.id] ||= {});
+    const r = S.fb.rounds.find(x => x.id === S.fb.cur), c = Object.values(S.notes).reduce((a, o) => a + Object.values(o).filter(n => n.memo).length, 0);
+    if (!(await ask(`「${r.name}」を削除しますか？${c ? `\nこの回のメモ（${c}件）が消えます。元に戻せません。` : ''}\nペンの線とほかの回のメモは残ります。`, 'FBの回を削除'))) return;
+    const i = S.fb.rounds.indexOf(r); S.fb.rounds.splice(i, 1);
+    const nx = S.fb.rounds[Math.min(i, S.fb.rounds.length - 1)], to = (S.fb.store[nx.id] ||= {});
+    moveStrokes(S.notes, to); delete S.fb.store[r.id];
+    S.fb.cur = nx.id; S.notes = to;
     roundsChanged(); gcFiles(); say(`「${r.name}」を削除しました`);
   }
   $('#fbRound').onchange = () => { switchRound(Number($('#fbRound').value)); $('#fbRound').blur(); };
