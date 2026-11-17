@@ -202,7 +202,7 @@
   #vpLabel { left: 8px; max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #vpHud { right: 8px; text-align: right; }
   #vpHud .hk { color: #ff8a8a; } #vpHud .hm { color: #9ad0ff; }
-  #ghost { position: absolute; pointer-events: none; display: none; }
+  #ghost, #scrubPrev { position: absolute; pointer-events: none; display: none; }
   #ovid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; display: none; }
   #ovPanel { position: absolute; right: 8px; bottom: 40px; z-index: 7; background: rgba(40,40,40,.94); border: 1px solid #222; padding: 6px 8px; display: flex; flex-direction: column; gap: 5px; width: 270px; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
   #ovPanel .or { display: flex; align-items: center; gap: 4px; }
@@ -498,7 +498,7 @@
 
   <!-- 4. ビューポート -->
   <main id="viewport">
-    <div id="pickBox"></div><div id="stage"><video id="video" playsinline muted></video><video id="ovid" playsinline muted></video><canvas id="ghost"></canvas><div id="board"></div></div>
+    <div id="pickBox"></div><div id="stage"><video id="video" playsinline muted></video><video id="ovid" playsinline muted></video><canvas id="ghost"></canvas><canvas id="scrubPrev"></canvas><div id="board"></div></div>
     <video id="gvid" playsinline muted class="hidden"></video>
     <canvas id="draw"></canvas>
     <canvas id="anno"></canvas>
@@ -3668,6 +3668,59 @@ If you want to offset all timestamps of a track such that the first one is zero,
 
   // ================= 時間操作 =================
   // 移動は再生範囲（レンジスライダー）の中だけ。free のとき（ポーズ・FB・数字入力で直接飛ぶ）は、範囲の外なら範囲を全体に戻す
+  // ---- スクラブ（タイムスライダーをつかんで動かす）を速く ----
+  // ① 動かしている間は「最後に指した位置」だけを読みに行く（途中の読み込みを積み残さない）。数字とバーはすぐ動く
+  // ② 一度表示したコマは小さなJPEGで覚えておき、本物の読み込みが終わるまでの間すぐに見せる（再生しただけでも覚える）
+  const pcache = new Map(), pcC = document.createElement('canvas'), pcX = pcC.getContext('2d'), sprev = $('#scrubPrev'), spx = sprev.getContext('2d');
+  let pcVid = null, scrub = null;
+  function pcStore(f) {
+    if (!has() || !video.videoWidth || video.seeking) return;
+    const v = V(); if (pcVid !== v.id) { pcache.clear(); pcVid = v.id; }
+    if (pcache.has(f)) return;
+    const w = Math.min(480, video.videoWidth); pcC.width = w; pcC.height = Math.round(video.videoHeight * w / video.videoWidth);
+    pcX.drawImage(video, 0, 0, pcC.width, pcC.height);
+    pcC.toBlob(b => { if (b && pcVid === v.id) { pcache.set(f, b); if (pcache.size > 6000) pcache.delete(pcache.keys().next().value); } }, 'image/jpeg', 0.72);
+  }
+  function pcNear(n) {
+    if (pcVid !== S.cur) return null;
+    for (let d = 0; d <= 6; d++) { if (pcache.has(n - d)) return pcache.get(n - d); if (d && pcache.has(n + d)) return pcache.get(n + d); }
+    return null;
+  }
+  function showPrev(n) {
+    const b = pcNear(n); if (!b) return;
+    createImageBitmap(b).then(bmp => {
+      if (!scrub || scrub.want !== n) { bmp.close(); return; }
+      if (sprev.width !== bmp.width || sprev.height !== bmp.height) { sprev.width = bmp.width; sprev.height = bmp.height; }
+      spx.drawImage(bmp, 0, 0); bmp.close(); sprev.dataset.n = (+sprev.dataset.n || 0) + 1;
+      Object.assign(sprev.style, { left: rect.x + 'px', top: rect.y + 'px', width: rect.w + 'px', height: rect.h + 'px', display: 'block' });
+    }).catch(() => {});
+  }
+  const hidePrev = () => { sprev.style.display = 'none'; };
+  function scrubTo(n) {
+    if (!has()) return;
+    const v = V(); n = Math.max(v.rStart, Math.min(v.rEnd, Math.round(n)));
+    if (!scrub) { video.pause(); stopStep(); looping = false; ghostHide(); scrub = { want: n, at: null, busy: false }; }
+    if (scrub.want === n && (scrub.busy || scrub.at === n)) return;
+    scrub.want = n; curF.value = n; drawTS(n);
+    if (scrub.busy) showPrev(n); else scrubSeek();
+  }
+  function scrubSeek() {
+    scrub.busy = true; scrub.at = scrub.want;
+    video.currentTime = (scrub.want - 0.5) / fps(); V().frame = scrub.want;
+  }
+  function scrubEnd() {
+    if (!scrub) return;
+    scrub.done = true;
+    if (!scrub.busy) { const n = scrub.want; scrub = null; hidePrev(); goto(n); }
+    else if (scrub.want !== scrub.at) scrubSeek();   // 離した位置をすぐ読みに行く（途中の読み込みは打ち切る）
+  }
+  video.addEventListener('seeked', () => {
+    if (has() && video.paused) pcStore(frame());
+    if (!scrub) { hidePrev(); return; }
+    scrub.busy = false;
+    if (scrub.want !== scrub.at) scrubSeek();
+    else { hidePrev(); if (scrub.done) { scrub = null; update(); ghostRefresh(); } }
+  });
   function goto(n, free) {
     if (!has()) return;
     const v = V();
@@ -3744,7 +3797,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   video.addEventListener('play', () => { $('#playIco').innerHTML = ICO_PAUSE; ghostHide(); tick(); });
   video.addEventListener('pause', () => { if (!ovid.paused) ovid.pause(); if (stepPlay || looping) return; $('#playIco').innerHTML = ICO_PLAY; if (has()) { settleFrame(); V().frame = frame(); update(); save(); ghostRefresh(); } });
-  video.addEventListener('seeked', () => update());
+  video.addEventListener('seeked', () => { if (scrub) { update(scrub.at); if (scrub.want !== scrub.at) { curF.value = scrub.want; drawTS(scrub.want); } } else update(); });
   video.addEventListener('ended', () => { const v = V(); if (!v || looping) return; loopBack(0); });
   // ---- 再生範囲でループ：範囲の最後のフレームが表示された瞬間に止め、1コマ分待ってから先頭へ ----
   // （画面の書き換えごとに確認するので、範囲の外のフレームが一瞬見えることがない）
@@ -3774,6 +3827,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (!HAS_RVFC) return;
     video.requestVideoFrameCallback((now, meta) => {
       lastMT = meta.mediaTime;
+      if (!video.paused && !looping) pcStore(Math.floor(meta.mediaTime * fps() + 1e-3) + 1);   // 再生した絵を覚えておく（スクラブがすぐ表示できる）
       if (video.paused || !has() || looping) return;
       const v = V(), f = Math.floor(meta.mediaTime * fps() + 1e-3) + 1;
       if (f >= v.rEnd || f < v.rStart) { loopBack(f >= v.rEnd ? 1000 / (fps() * video.playbackRate) : 0); return; }
@@ -3942,7 +3996,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     }
     const key = `${S.cur}:${n}`;
     if (following() && key !== lastShown) { lastShown = key; applyView(); showMemo(); renderLayers(); if (!stepPlay) ghostRefresh(); }
-    if (key !== lastShown) { lastShown = key; paintDrawing(true); showMemo(); renderLayers(); if (!stepPlay) ghostRefresh(); }
+    if (key !== lastShown) { lastShown = key; paintDrawing(true); showMemo(); renderLayers(); if (!stepPlay && !scrub) ghostRefresh(); }
     if (video.paused) ovSeek(n);
     drawTS(n);
   }
@@ -3998,7 +4052,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     }
   }
   const tsFrame = (e) => { const r = ts.getBoundingClientRect(), v = V(); return Math.floor(v.rStart + (e.clientX - r.left - 8) / ((r.width - 16) / Math.max(1, v.rEnd - v.rStart + 1))); };
-  dragOn(ts, (e) => { if (!has() || e.button !== 0) return false; goto(tsFrame(e)); }, (e) => goto(tsFrame(e)));
+  dragOn(ts, (e) => { if (!has() || e.button !== 0) return false; scrubTo(tsFrame(e)); }, (e) => scrubTo(tsFrame(e)), () => scrubEnd());
   ts.addEventListener('contextmenu', e => {   // 右クリック：近くのキーを削除
     e.preventDefault(); if (!has()) return;
     const f = tsFrame(e), r = ts.getBoundingClientRect(), v = V(), px = (r.width - 16) / Math.max(1, v.rEnd - v.rStart + 1);
@@ -4038,7 +4092,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
 
   // ---- K + ドラッグでスクラブ（ペン中も有効） ----
   let kDown = false, kStart;
-  dragOn(vp, (e) => { if (!kDown || !has()) return false; kStart = { x: e.clientX, f: frame() }; }, (e) => goto(kStart.f + Math.round((e.clientX - kStart.x) / 6)));
+  dragOn(vp, (e) => { if (!kDown || !has()) return false; kStart = { x: e.clientX, f: frame() }; }, (e) => scrubTo(kStart.f + Math.round((e.clientX - kStart.x) / 6)), () => scrubEnd());
 
   function dragOn(el, down, move, upCb) {
     el.addEventListener('pointerdown', e => {
@@ -5263,7 +5317,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   function applyFlip() {
     const tf = S.flip ? 'scaleX(-1)' : '';
-    [video, ovid, ghost].forEach(el => el.style.transform = tf);
+    [video, ovid, ghost, $('#scrubPrev')].forEach(el => el.style.transform = tf);
     $('#tgFlip').classList.toggle('on', !!S.flip);
     paintDrawing(true);
   }
