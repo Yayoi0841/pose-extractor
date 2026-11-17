@@ -2798,7 +2798,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       app: 'pose-extractor', version: 1, savedAt: new Date().toISOString(),
       name: S.name, day: S.day, current: S.current, cur: S.cur, motions: S.motions, notes: S.notes, pen: S.pen, eraser: S.eraser, layers: S.layers, layer: S.layer, ov: S.ov, flip: S.flip, keys: S.keys, stepped: S.stepped, ghost: S.ghost, groups: S.groups, top: S.top, arcs: S.arcs, meas: S.meas, guides: S.guides, onion: S.onion, keyGaps: S.keyGaps, follow: S.follow, track: S.track, followSm: S.followSm, fbPrev: S.fbPrev,
       fbr: S.fb ? { cur: S.fb.cur, rounds: S.fb.rounds, store: Object.fromEntries(Object.entries(S.fb.store).filter(([k]) => Number(k) !== S.fb.cur)) } : null,
-      videos: S.videos.map(v => ({ g: v.g, still: v.still, id: v.id, name: v.name, size: v.size, fp: v.fp, fps: v.fps, fpsSrc: v.fpsSrc, frame: v.frame, rStart: v.rStart, rEnd: v.rEnd, dur: v.dur, thumb: v.thumb })),
+      videos: S.videos.map(v => ({ g: v.g, still: v.still, view: v === V() && has() && v.ready ? curView() : v.view, id: v.id, name: v.name, size: v.size, fp: v.fp, fps: v.fps, fpsSrc: v.fpsSrc, frame: v.frame, rStart: v.rStart, rEnd: v.rEnd, dur: v.dur, thumb: v.thumb })),
     };
   }
   // ---- 作業（セッション）ごとに保存 ----
@@ -3116,6 +3116,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       if (typeof v.fp === 'string' && /^[0-9a-f]{1,64}$/.test(v.fp)) x.fp = v.fp;
       if (sId(v.g)) x.g = v.g;
       if (v.still) x.still = true;
+      if (v.view && typeof v.view === 'object') x.view = { z: sNum(v.view.z, 1, 0.25, 40), cx: sNum(v.view.cx, 0.5, -10, 10), cy: sNum(v.view.cy, 0.5, -10, 10) };
       return x;
     });
     o.motions = (Array.isArray(d.motions) ? d.motions : []).slice(0, 500).map(m => ({ tame: sPose(m?.tame), hit: sPose(m?.hit) }));
@@ -3304,7 +3305,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   function switchTo(id, thenFrame, quiet) {
     const cur = V();
-    if (cur && has()) cur.frame = frame();     // 今の位置を覚えておく
+    if (cur && has()) { cur.frame = frame(); if (cur.ready && cur.id !== id) cur.view = curView(); }     // 今の位置と拡大を覚えておく
     video.pause();
     S.cur = id;
     const v = V();
@@ -3330,7 +3331,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (v.rEnd == null) v.rEnd = total();
     video.playbackRate = nativeRate();
     $('#vpLabel').textContent = `${S.videos.indexOf(v) + 1}: ${v.name}`;
-    view.z = 1; view.tx = view.ty = 0; layoutDraw(); syncUI();
+    view.z = 1; view.tx = view.ty = 0; layoutDraw();
+    restoreView(v.view);   // この動画で最後に見ていた拡大・位置に戻す
+    syncUI();
     goto(v.pending ?? v.frame, v.pending != null); v.pending = null;
     if (S.ov.on) { renderOvPanel(); ovApply(); }
   });
@@ -4003,8 +4006,10 @@ If you want to offset all timestamps of a track such that the first one is zero,
   new ResizeObserver(() => { layoutDraw(); syncUI(); }).observe(vp);
 
   // ---- 拡大・移動 ----
+  let vSaveT = null;
   function applyView() {
     followView();
+    if (has() && V()?.ready && video.paused) { clearTimeout(vSaveT); vSaveT = setTimeout(() => save(), 1000); }   // 拡大・位置も覚えておく
     stage.style.transform = `translate(${view.tx}px, ${view.ty}px) scale(${view.z})`;
     const pct = has() && video.videoWidth ? Math.round(rect.w * view.z / video.videoWidth * 100) : 100;
     $('#zPct').textContent = pct + '%';
@@ -4026,6 +4031,19 @@ If you want to offset all timestamps of a track such that the first one is zero,
     clampView(); applyView();
   }
   function fitView() { view.z = 1; view.tx = view.ty = 0; applyView(); }
+  // 動画ごとの拡大・位置（拡大率と、画面の真ん中に来ている動画上の点）
+  const vCenterX = () => vp.clientWidth / (vp.classList.contains('side') ? 4 : 2);
+  function curView() {
+    const m = M(true);
+    return { z: Math.round(view.z * 1000) / 1000, cx: Math.round((vCenterX() - m.ox) / m.sw * 10000) / 10000, cy: Math.round((vp.clientHeight / 2 - m.oy) / m.sh * 10000) / 10000 };
+  }
+  function restoreView(sv) {
+    if (!sv || !(sv.z > 1.01)) { applyView(); return; }
+    view.z = sv.z; view.tx = view.ty = 0;
+    const m = M(true);
+    view.tx = vCenterX() - (m.ox + sv.cx * m.sw); view.ty = vp.clientHeight / 2 - (m.oy + sv.cy * m.sh);
+    clampView(); applyView();
+  }
   const zoomStep = (d) => zoomAt(view.z * (d > 0 ? 1.25 : 0.8));
   const zoom100 = () => { if (has()) zoomAt(video.videoWidth / rect.w); };
   vp.addEventListener('wheel', e => {
