@@ -152,6 +152,20 @@
   .vtg:hover { background: #454545; } .vtg.hasCur { border-color: var(--hl); }
   #pickBox { position: absolute; border: 1.5px dashed #4aa3ff; background: rgba(74,163,255,.12); pointer-events: none; z-index: 7; display: none; }
   #viewport.picking, #viewport.picking * { cursor: crosshair !important; }
+  .brow { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 30px; background: #2d2d2d; border-bottom: 1px solid #383838; font-size: 11px; color: #cfcfcf; cursor: pointer; user-select: none; position: relative; }
+  .brow.in { padding-left: 44px; }
+  .brow::before { content: ''; position: absolute; left: 18px; top: 0; bottom: 0; border-left: 1px solid #555; }
+  .brow.in::before { left: 32px; }
+  .brow:hover { background: #3a3a3a; } .brow.on { background: #34506a; }
+  .brow.off .bt, .brow.off .bn { opacity: .4; }
+  .brow .be { width: 20px; height: 20px; min-width: 0; padding: 0; background: none; border: 0; font-size: 12px; color: #ddd; flex: none; }
+  .brow.off .be { color: #777; }
+  .brow .bt { width: 30px; height: 18px; object-fit: cover; background: #111; flex: none; border: 1px solid #555; }
+  .brow .bk { flex: none; font-size: 10px; color: #9fd0ff; }
+  .brow .bn { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .brow .bx { display: none; } .brow:hover .bx { display: inline-block; }
+  .brow.dropA { box-shadow: inset 0 2px 0 #7fb6dc; } .brow.dropB { box-shadow: inset 0 -2px 0 #7fb6dc; }
+  #videoPanel.thin .brow .bn, #videoPanel.thin .brow .bk { display: none; }
   #vEmpty { padding: 12px 8px; color: var(--sub); line-height: 1.7; }
 
   /* ビューポート */
@@ -164,7 +178,6 @@
   #board { position: absolute; inset: 0; pointer-events: none; }
   .bitem { position: absolute; display: block; object-fit: fill; background: #000; box-shadow: 0 0 0 1px rgba(0,0,0,.7), 0 2px 10px rgba(0,0,0,.45); }
   .bitem.boff { display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; color: #ccc; font-size: 12px; background: #333; }
-  body.penHidden #board { opacity: 0; }
   #bctl { position: absolute; z-index: 8; display: flex; gap: 4px; align-items: center; background: rgba(28,28,28,.92); border: 1px solid #555; padding: 3px 6px; border-radius: 3px; }
   #bctl.hidden { display: none; }
   #bctl input { flex: 1; min-width: 80px; }
@@ -700,8 +713,9 @@
 <li><kbd>V</kbd> でドラッグ移動・角で拡大縮小。<b>画面の外にも置ける</b>（ホイールで縮小すると見やすい）</li>
 <li>サブ動画は下のバーで再生・位置・🔗同期（メインと一緒に再生）</li>
 <li><kbd>Delete</kbd> で外す／<kbd>Ctrl</kbd>+<kbd>Z</kbd> で戻す</li>
+<li><b>レイヤー</b>：左の一覧で動画の下に並ぶ。👁 で表示切替・ドラッグで重なり順・ダブルクリックで名前</li>
 </ul>
-<p class="tip">置いた物は全コマ共通で、ベース動画ごとに覚えます。</p>
+<p class="tip">置いた物は全コマ共通で、ベース動画ごとに覚えます。「ペンを隠す」（<kbd>H</kbd>）では消えません。</p>
 </section>
 
 <section data-t="分析 軌道 アーク 角度 測る">
@@ -3184,7 +3198,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const pt2 = (q) => Array.isArray(q) && q.length === 2 ? [sNum(q[0], 0.5, -10, 10), sNum(q[1], 0.5, -10, 10)] : null;
     o.arcs = {}; if (d.arcs && typeof d.arcs === 'object') for (const vid of Object.keys(d.arcs)) { if (!Array.isArray(d.arcs[vid])) continue; o.arcs[sStr(vid, 400)] = d.arcs[vid].slice(0, 50).filter(a => a && typeof a.p === 'object').map(a => { const p = {}; for (const f of Object.keys(a.p)) { const q = pt2(a.p[f]); if (/^\d{1,7}$/.test(f) && q) p[f] = q; } return { c: COLOR_RE.test(a.c) ? a.c : '#ffd400', p }; }); }
     o.meas = {}; if (d.meas && typeof d.meas === 'object') for (const vid of Object.keys(d.meas)) { const fo = d.meas[vid]; if (!fo || typeof fo !== 'object') continue; const out = {}; for (const f of Object.keys(fo)) if (/^\d{1,7}$/.test(f) && Array.isArray(fo[f])) out[f] = fo[f].filter(l => Array.isArray(l) && l.length === 4).slice(0, 100).map(l => l.map(v => sNum(v, 0.5, -10, 10))); o.meas[sStr(vid, 400)] = out; }
-    o.board = {}; if (d.board && typeof d.board === 'object') for (const vid of Object.keys(d.board)) { if (!Array.isArray(d.board[vid])) continue; o.board[sStr(vid, 400)] = d.board[vid].slice(0, 200).filter(it => it && sId(it.id) && (it.t === 'i' ? PIC_RE.test(it.k) : it.t === 'v' && typeof it.v === 'string')).map(it => { const x = { b: true, t: it.t, id: it.id, x: sNum(it.x, 0, -50, 50), y: sNum(it.y, 0, -50, 50), w: sNum(it.w, 0.3, 0.005, 50), h: it.h == null ? null : sNum(it.h, 0.2, 0.005, 50) }; if (it.t === 'i') x.k = it.k; else { x.v = sStr(it.v, 400); x.sync = it.sync !== false; x.t0 = sNum(it.t0, 0, 0, 1e6); } return x; }); }
+    o.board = {}; if (d.board && typeof d.board === 'object') for (const vid of Object.keys(d.board)) { if (!Array.isArray(d.board[vid])) continue; o.board[sStr(vid, 400)] = d.board[vid].slice(0, 200).filter(it => it && sId(it.id) && (it.t === 'i' ? PIC_RE.test(it.k) : it.t === 'v' && typeof it.v === 'string')).map(it => { const x = { b: true, t: it.t, id: it.id, name: it.name ? sStr(it.name, 60) : undefined, hide: !!it.hide, x: sNum(it.x, 0, -50, 50), y: sNum(it.y, 0, -50, 50), w: sNum(it.w, 0.3, 0.005, 50), h: it.h == null ? null : sNum(it.h, 0.2, 0.005, 50) }; if (it.t === 'i') x.k = it.k; else { x.v = sStr(it.v, 400); x.sync = it.sync !== false; x.t0 = sNum(it.t0, 0, 0, 1e6); } return x; }); }
     o.guides = { center: !!d.guides?.center, thirds: !!d.guides?.thirds };
     o.onion = { on: !!d.onion?.on, n: Math.round(sNum(d.onion?.n, 2, 1, 5)) };
     o.keyGaps = d.keyGaps !== false;
@@ -3528,9 +3542,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
     vList.innerHTML = '';
     const idx = new Map(S.videos.map((v, i) => [v, i]));
     S.top.forEach(tok => {
-      if (!isG(tok)) { const v = S.videos.find(x => x.id === tok); if (v) vList.appendChild(vRow(v, idx.get(v))); return; }
+      if (!isG(tok)) { const v = S.videos.find(x => x.id === tok); if (v) { vList.appendChild(vRow(v, idx.get(v))); bRows(v).forEach(r => vList.appendChild(r)); } return; }
       const g = grp(tok.slice(2)); vList.appendChild(gRow(g));
-      if (g.open) members(g.id).forEach(v => vList.appendChild(vRow(v, idx.get(v))));
+      if (g.open) members(g.id).forEach(v => { vList.appendChild(vRow(v, idx.get(v))); bRows(v).forEach(r => vList.appendChild(r)); });
     });
     renderTabs();
   }
@@ -4072,7 +4086,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function clampView() {   // 動画（＋置いたサブ資料）が画面から完全には出ないように
     const W = vp.clientWidth, H = vp.clientHeight, m = M(true), keep = 60;
     let x0 = 0, x1 = 1, y0 = 0, y1 = 1;
-    if (has() && S.board?.[S.cur]) for (const it of S.board[S.cur]) { const sx = S.flip ? 1 - it.x - it.w : it.x; x0 = Math.min(x0, sx); x1 = Math.max(x1, sx + it.w); y0 = Math.min(y0, it.y); y1 = Math.max(y1, it.y + (it.h ?? it.w * 9 / 16)); }
+    if (has() && S.board?.[S.cur]) for (const it of S.board[S.cur]) { if (it.hide) continue; const sx = S.flip ? 1 - it.x - it.w : it.x; x0 = Math.min(x0, sx); x1 = Math.max(x1, sx + it.w); y0 = Math.min(y0, it.y); y1 = Math.max(y1, it.y + (it.h ?? it.w * 9 / 16)); }
     const L = m.ox + x0 * m.sw, R = m.ox + x1 * m.sw, T = m.oy + y0 * m.sh, B = m.oy + y1 * m.sh;
     if (L > W - keep) view.tx -= L - (W - keep);
     if (R < keep) view.tx += keep - R;
@@ -4438,7 +4452,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   });
   // ---- 選択・移動・拡大縮小 ----
   let sel = null, xf = null;   // sel = { vid, f, st }
-  const selSt = () => !(sel && has() && sel.vid === S.cur) ? null : sel.st.b ? (boardOf().includes(sel.st) ? sel.st : null) : (sel.f === frame() && note(S.cur, sel.f)?.strokes.includes(sel.st)) ? sel.st : null;
+  const selSt = () => !(sel && has() && sel.vid === S.cur) ? null : sel.st.b ? (boardOf().includes(sel.st) && !sel.st.hide ? sel.st : null) : (sel.f === frame() && note(S.cur, sel.f)?.strokes.includes(sel.st)) ? sel.st : null;
   const scr = (x, y, m = M()) => [m.ox + x * m.sw, m.oy + y * m.sh];
   function corners(st) {   // 画面上の角（左上・右上・右下・左下の順。反転中も見た目どおり）
     const m = M(), xs = [scr(st.x, 0, m)[0], scr(st.x + st.w, 0, m)[0]].sort((a, b) => a - b);
@@ -4463,7 +4477,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       for (let j = ss.length - 1; j >= 0; j--) { const s = ss[j]; if (s.t === 'i' && x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) return s; }
     }
     const bo = boardOf();   // サブ資料（前にあるものから）
-    for (let i = bo.length - 1; i >= 0; i--) { const s = bo[i], hh = s.h ?? s.w * 9 / 16, sx = S.flip ? 1 - s.x - s.w : s.x; if (x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + hh) return s; }
+    for (let i = bo.length - 1; i >= 0; i--) { const s = bo[i]; if (s.hide) continue; const hh = s.h ?? s.w * 9 / 16; if (x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + hh) return s; }
     return null;
   }
   function handleAt(px, py, st) { const c = corners(st); return c.findIndex(([x, y]) => Math.abs(px - x) <= 7 && Math.abs(py - y) <= 7); }
@@ -4519,7 +4533,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (st.b) {
       const a = boardOf(), i = a.indexOf(st); a.splice(i, 1); sel = null;
       undoStack.push({ vid: S.cur, f: frame(), op: 'bdel', st, i }); redoStack.length = 0;
-      renderBoard(); paintDrawing(false); save(); say(`${st.t === 'v' ? 'サブ動画' : '画像'}を外しました（Ctrl+Zで戻せます）`); return;
+      renderBoard(); renderVideos(); paintDrawing(false); save(); say(`${st.t === 'v' ? 'サブ動画' : '画像'}を外しました（Ctrl+Zで戻せます）`); return;
     }
     const f = frame(), n = note(S.cur, f), i = n.strokes.indexOf(st);
     n.strokes.splice(i, 1); tidyNote(S.cur, f); sel = null;
@@ -5316,6 +5330,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     });
   }
   sortable(vList, '.vitem, .grow', 'video', false, dropItem);
+  sortable(vList, '.brow', 'board', false, (id, tg, after) => dropBoard(id, tg, after));
   sortable($('#vTabs'), '.vtab', 'video', true, dropItem);
   $('#vGroup').onclick = () => newGroup(false);
   sortable($('#layerList'), '.lrow', 'layer', false, (id, target, after) => {
@@ -5826,15 +5841,49 @@ If you want to offset all timestamps of a track such that the first one is zero,
     }
     return el;
   }
+  // ---- 動画の一覧に、置いた資料をレイヤーとして並べる（上ほど前） ----
+  const bName = (it, i) => it.name || (it.t === 'v' ? (S.videos.find(v => v.id === it.v)?.name || 'サブ動画') : `画像 ${i + 1}`);
+  function bRows(v) {
+    const a = S.board?.[v.id]; if (!a?.length) return [];
+    const imgN = new Map(); let n = 0; a.forEach(it => { if (it.t === 'i') { imgN.set(it, n++); if (!it.name) it.name = `画像 ${n}`; } });   // 名前は最初に決めたまま（並べ替えても変わらない）
+    return a.slice().reverse().map(it => {
+      const el = document.createElement('div');
+      el.className = 'brow' + (v.g ? ' in' : '') + (it.hide ? ' off' : '') + (sel?.st === it ? ' on' : '');
+      el.draggable = true; el.dataset.id = it.id; el.dataset.vid = v.id;
+      el.title = 'クリックで選ぶ・ドラッグで重なり順・ダブルクリックで名前変更';
+      const sv = it.t === 'v' ? S.videos.find(x => x.id === it.v) : null, th = it.t === 'i' ? pics.get(it.k)?.url : sv?.thumb;
+      el.innerHTML = `<button class="be" title="表示／非表示">${it.hide ? '—' : '👁'}</button>${th ? `<img class="bt" src="${esc(th)}" alt="">` : '<span class="bt"></span>'}<span class="bk">${it.t === 'v' ? '動画' : '画像'}</span><span class="bn">${esc(bName(it, imgN.get(it) ?? 0))}</span><button class="mini bx" title="外す">×</button>`;
+      if (it.t === 'i' && !th) pic(it.k).ready?.then(() => { const u = pics.get(it.k)?.url, im = el.querySelector('.bt'); if (u && im?.tagName === 'IMG') im.src = u; });
+      el.onclick = (e) => {
+        if (e.target.closest('input')) return;
+        if (e.target.closest('.be')) { it.hide = !it.hide; if (it.hide && sel?.st === it) sel = null; renderBoard(); renderVideos(); paintDrawing(false); save(); return; }
+        if (e.target.closest('.bx')) { if (v.id !== S.cur) { switchTo(v.id); return; } sel = { vid: S.cur, f: frame(), st: it }; deletePic(); return; }
+        if (e.detail === 2 && e.target.closest('.bn')) { inlineEdit(el.querySelector('.bn'), bName(it, imgN.get(it) ?? 0), '名前', (val) => { if (val) it.name = val; renderVideos(); save(); }); return; }
+        const pickIt = () => { if (it.hide) { it.hide = false; renderBoard(); } if (S.tool !== 'select') setTool('select'); sel = { vid: S.cur, f: frame(), st: it }; paintDrawing(false); renderVideos(); };
+        if (v.id !== S.cur) { switchTo(v.id); setTimeout(pickIt, 400); } else pickIt();
+      };
+      return el;
+    });
+  }
+  function dropBoard(id, target, after) {
+    const vid = vList.querySelector(`.brow[data-id="${CSS.escape(target)}"]`)?.dataset.vid, a = S.board[vid]; if (!a) return;
+    const it = a.find(x => x.id === id), tg = a.find(x => x.id === target); if (!it || !tg) { say('同じ動画の中で並べ替えてください'); return; }
+    a.splice(a.indexOf(it), 1);
+    const ti = a.indexOf(tg);   // 一覧は「上ほど前」＝配列の後ろ。下（after）に落とすと tg の後ろ側（配列では前）
+    a.splice(after ? ti : ti + 1, 0, it);
+    renderBoard(); renderVideos(); save();
+  }
   function renderBoard() {
-    const items = has() ? boardOf() : [], keep = new Set(items.map(it => it.id));
+    const items = has() ? boardOf() : [], keep = new Set(items.filter(it => !it.hide).map(it => it.id));
     for (const [id, el] of bEls) if (!keep.has(id)) { if (el.tagName === 'VIDEO') { el.pause(); el.removeAttribute('src'); el.load(); } el.remove(); bEls.delete(id); }
     items.forEach((it, i) => {
+      if (it.hide) return;
       const el = boardElFor(it), h = it.h ?? it.w * 9 / 16;
       const x = S.flip ? 1 - it.x - it.w : it.x;
       Object.assign(el.style, { left: rect.x + x * rect.w + 'px', top: rect.y + it.y * rect.h + 'px', width: it.w * rect.w + 'px', height: h * rect.h + 'px', zIndex: 1 + i, transform: S.flip ? 'scaleX(-1)' : '' });
     });
     syncBctl();
+    vList.querySelectorAll('.brow').forEach(r => r.classList.toggle('on', !!sel && r.dataset.id === sel.st?.id));
   }
   // 選んでいるサブ動画の操作バー（再生／止める・位置・メインと一緒に再生・前後の入れ替え）
   function syncBctl() {
@@ -5851,8 +5900,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
   $('#bcPlay').onclick = () => { const el = selEl(); if (!el) return; if (el.paused) el.play().catch(() => {}); else el.pause(); setTimeout(syncBctl, 50); };
   $('#bcSeek').oninput = () => { const el = selEl(); if (el?.duration) { el.pause(); el.currentTime = $('#bcSeek').value / 1000 * el.duration; selSt().t0 = el.currentTime; save(); } };
   $('#bcSync').onclick = () => { const st = selSt(); if (!st) return; st.sync = st.sync === false; save(); syncBctl(); say(st.sync ? 'メインと一緒に再生・停止します' : 'このサブ動画はメインとは別に動きます'); };
-  $('#bcFront').onclick = () => { const st = selSt(); if (!st) return; const a = boardOf(), i = a.indexOf(st); a.splice(i, 1); a.push(st); renderBoard(); save(); };
-  $('#bcBack').onclick = () => { const st = selSt(); if (!st) return; const a = boardOf(), i = a.indexOf(st); a.splice(i, 1); a.unshift(st); renderBoard(); save(); };
+  $('#bcFront').onclick = () => { const st = selSt(); if (!st) return; const a = boardOf(), i = a.indexOf(st); a.splice(i, 1); a.push(st); renderBoard(); renderVideos(); save(); };
+  $('#bcBack').onclick = () => { const st = selSt(); if (!st) return; const a = boardOf(), i = a.indexOf(st); a.splice(i, 1); a.unshift(st); renderBoard(); renderVideos(); save(); };
   bctl.addEventListener('pointerdown', e => e.stopPropagation());
   // メイン動画の再生・停止・速度に合わせる
   function boardSync(play) {
@@ -5880,7 +5929,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     undoStack.push({ vid: S.cur, f: frame(), op: 'badd', st: it }); redoStack.length = 0;
     if (S.tool !== 'select') setTool('select');
     sel = { vid: S.cur, f: frame(), st: it };
-    renderBoard(); paintDrawing(false); save(); say(msg);
+    renderBoard(); renderVideos(); paintDrawing(false); save(); say(msg);
   }
   function placeSubVideo(id) {
     if (!has()) { say('先にベースの動画を開いてください'); return; }
@@ -5897,7 +5946,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
         setPicUrl(k, url); keepPic(k);
         const vw = video.videoWidth, vh = video.videoHeight, sc = Math.min(1, 0.6 * vw / w, 0.6 * vh / h);
         const nw = w * sc / vw, nh = h * sc / vh, p = boardSpot(nw, nh);
-        last = { b: true, t: 'i', id: bid(), k, x: p.x, y: p.y, w: nw, h: nh };
+        last = { b: true, t: 'i', id: bid(), name: `画像 ${boardOf().filter(x => x.t === 'i').length + 1}`, k, x: p.x, y: p.y, w: nw, h: nh };
         boardOf().push(last); undoStack.push({ vid: S.cur, f: frame(), op: 'badd', st: last }); n++;
       } catch { say(`「${f.name}」を置けませんでした`); }
     }
@@ -5905,7 +5954,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     redoStack.length = 0;
     if (S.tool !== 'select') setTool('select');
     sel = { vid: S.cur, f: frame(), st: last };
-    renderBoard(); paintDrawing(false); save();
+    renderBoard(); renderVideos(); paintDrawing(false); save();
     say(`画像を${n > 1 ? n + '枚' : ''}置きました（全コマ共通）。ドラッグで移動・角で拡大縮小・画面の外にも置けます・Deleteで削除`);
   }
   function applyBoardOp(o, undo) {
@@ -5916,7 +5965,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       if (add) { if (!a.includes(o.st)) a.splice(Math.min(o.i ?? a.length, a.length), 0, o.st); if (o.st.t === 'i') keepPic(o.st.k); }
       else { const i = a.indexOf(o.st); if (i >= 0) a.splice(i, 1); if (sel?.st === o.st) sel = null; }
     }
-    renderBoard(); paintDrawing(false); save();
+    renderBoard(); renderVideos(); paintDrawing(false); save();
   }
   // 動画の一覧から、ビューポートへドラッグでサブ動画として置く
   vp.addEventListener('dragover', e => { if (dragItem?.kind === 'video' && has()) { e.preventDefault(); e.stopPropagation(); vp.classList.add('dragover'); } });
