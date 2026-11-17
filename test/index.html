@@ -28,6 +28,9 @@
   button.mini { padding: 0 6px; height: 18px; font-size: 11px; }
   input[type=number], select, textarea { background: var(--field); border: 1px solid #1f1f1f; border-radius: 2px; padding: 2px 4px; }
   input[type=number], select { height: 22px; }
+  input:not([type]), input[type=text], input[type=search] { background: #1b1b1b; color: #ffffff; border: 1px solid #5a5a5a; border-radius: 2px; padding: 2px 6px; caret-color: #ffffff; }
+  input:not([type])::placeholder, input[type=text]::placeholder, input[type=search]::placeholder { color: #8c8c8c; font-style: normal; }
+  input:not([type])::selection, input[type=text]::selection, input[type=search]::selection { background: #3d7fc4; color: #fff; }
   input[type=number] { width: 52px; text-align: right; -moz-appearance: textfield; }
   input[type=number]::-webkit-inner-spin-button { display: none; }
   input[type=range] { accent-color: var(--hl); width: 80px; }
