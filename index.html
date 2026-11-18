@@ -3307,7 +3307,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       const o = keepFiles && old.get(m.id);
       return { ...m, url: o?.url || null, file: o?.file || null, ready: false, offline: !o };
     });
-    if (keepFiles) old.forEach((o, id) => { if (!S.videos.some(v => v.id === id)) S.videos.push(o); });
+    // 別の作業の動画は持ち込まない（同じ動画だけ読み込み済みのものを使い回す）
     S.track = d.track || {}; S.follow = !!d.follow; if (d.followSm) S.followSm = d.followSm; smCache = null; syncFollowBtn(); fOff.x = fOff.y = 0;
     S.board = d.board || {}; S.arcs = d.arcs || {}; S.meas = d.meas || {}; arcIdx = 0;
     S.guides = d.guides || { center: false, thirds: false }; S.onion = d.onion || { on: false, n: 2 }; S.keyGaps = d.keyGaps !== false; syncViewMenu();
