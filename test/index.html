@@ -5037,12 +5037,14 @@ If you want to offset all timestamps of a track such that the first one is zero,
 
   // ================= フレームメモ =================
   const memo = $('#memo');
+  let memoAt = '';   // 入力欄が今どのフレームのメモか（動画ID:フレーム）。フレームが変わったら入力中でも中身を入れ替える
   function showMemo() {
     const f = frame(), n = has() ? note(S.cur, f) : null;
     const ov = $('#memoOv');
     ov.textContent = n?.memo || ''; ov.classList.toggle('hidden', !n?.memo);
     $('#memoTitle').textContent = has() ? `フレーム ${f} のメモ` : 'フレームメモ';
-    if (document.activeElement !== memo) memo.value = n?.memo || '';
+    const at = has() ? S.cur + ':' + f : '';
+    if (document.activeElement !== memo || at !== memoAt) { memo.value = n?.memo || ''; memoAt = at; }
     const pn = has() ? prevNote(S.cur, f) : null, mp = $('#memoPrev');
     mp.textContent = pn?.memo ? `${prevRound()?.name}：${pn.memo}` : ''; mp.classList.toggle('hidden', !pn?.memo);
     memo.disabled = !has();
@@ -5051,7 +5053,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
   let memoTimer;
   memo.addEventListener('input', () => {
     if (!has()) return;
-    const f = frame(), n = note(S.cur, f, true);
+    const f = frame();
+    if (memoAt !== S.cur + ':' + f) { showMemo(); return; }   // 別のフレームに移った直後の入力は、そのフレームのメモとして扱い直す
+    const n = note(S.cur, f, true);
     n.memo = memo.value; tidyNote(S.cur, f);
     const ov = $('#memoOv'); ov.textContent = memo.value; ov.classList.toggle('hidden', !memo.value);
     clearTimeout(memoTimer); memoTimer = setTimeout(fbChanged, 300);
