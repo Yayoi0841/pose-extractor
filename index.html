@@ -428,6 +428,9 @@
   body.penPanel #paneFb { display: flex; flex-direction: column; }
   body.penPanel #paneFb .layerBox { order: -1; flex: 1; min-height: 0; border-bottom: 1px solid var(--line); }
   body.penPanel #paneFb .layerBox .mt b { font-size: 13px; }
+  #layerList .lhead { padding: 4px 8px; font-size: 11px; color: var(--sub); }
+  #layerList .lmore { padding: 6px 8px; font-size: 11px; color: var(--sub); cursor: pointer; border-top: 1px solid var(--line); user-select: none; }
+  #layerList .lmore:hover { color: #fff; background: #4b4b4b; }
   body.penPanel #layerList { flex: 1; max-height: none; min-height: 120px; }
   body.penPanel .lrow { height: 40px; gap: 6px; padding: 0 6px; }
   body.penPanel .lrow .lth { display: block; }
@@ -3651,7 +3654,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
         if (!/^\d{1,7}$/.test(f)) continue;
         const n = o[f]; if (!n || typeof n !== 'object') continue;
         const strokes = (Array.isArray(n.strokes) ? n.strokes : []).map(sStroke).filter(Boolean), memo = sStr(n.memo, 20000);
-        if (memo || strokes.length) { fo[f] = { memo, strokes }; if (n.done === true) fo[f].done = true; }
+        if (memo || strokes.length) { fo[f] = { memo, strokes }; if (n.done === true) fo[f].done = true; if (Array.isArray(n.hid)) { const h = n.hid.map(sId).filter(Boolean).slice(0, 100); if (h.length) fo[f].hid = h; } }
       }
       if (Object.keys(fo).length) out[sStr(vid, 400)] = fo;
     }
@@ -4881,7 +4884,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       if (n?.strokes.length) {
         const ai = S.layers.indexOf(act);
         S.layers.forEach((L, i) => {
-          if (!L.vis) return;
+          if (!lv(L, n)) return;
           const ss = strokesOf(n, L.id).filter(s => s.t !== 'x'); if (!ss.length) return;
           if (i === ai) { ss.forEach(st => drawStroke(actx, st, m)); return; }
           ltctx.clearRect(0, 0, ltmp.width, ltmp.height);
@@ -4898,14 +4901,14 @@ If you want to offset all timestamps of a track such that the first one is zero,
     dctx.drawImage(below, 0, 0);
     let a = actv;
     if (live) { ltctx.clearRect(0, 0, ltmp.width, ltmp.height); ltctx.drawImage(actv, 0, 0); drawStroke(ltctx, live, m); a = ltmp; }
-    if (act?.vis) { dctx.globalAlpha = act.op / 100; dctx.drawImage(a, 0, 0); dctx.globalAlpha = 1; }
+    if (lv(act, n)) { dctx.globalAlpha = act.op / 100; dctx.drawImage(a, 0, 0); dctx.globalAlpha = 1; }
     dctx.drawImage(above, 0, 0);
     dctx.restore();
     // 文字は動画の外にも置ける（Figma のように）ので、はみ出しを切らずに上に描く。全フレームの文字（フレーム0）も毎コマ出す
     { const gn = note(S.cur, 0);
       S.layers.forEach(L => {
         if (!L.vis) return;
-        const ss = [...strokesOf(gn, L.id), ...strokesOf(n, L.id)].filter(s => s.t === 'x'); if (!ss.length) return;
+        const ss = [...strokesOf(gn, L.id), ...(lv(L, n) ? strokesOf(n, L.id) : [])].filter(s => s.t === 'x'); if (!ss.length) return;
         dctx.globalAlpha = L.op / 100; ss.forEach(st => drawStroke(dctx, st, m)); dctx.globalAlpha = 1;
       }); }
     drawSel();
@@ -4944,7 +4947,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (fbHidden) toggleHide(false);   // 隠したまま描くと見えないので表示に戻す
     if (e.pointerType === 'pen' && !penSeen) { penSeen = true; $('#penPrT').textContent = '筆圧 ✓'; $('#penPrL').title = 'ペンタブレットを検出しました。筆圧で太さが変わります'; say('ペンタブレットを検出しました（筆圧で線の太さが変わります）'); }
     const L = activeLayer();
-    if (!L.vis) { say(`レイヤー「${L.name}」は非表示なので描けません（目のアイコンで表示してください）`); return; }
+    if (!lv(L, note(S.cur, frame()))) { say(`レイヤー「${L.name}」はこのフレームで非表示なので描けません（目のアイコンで表示してください）`); return; }
     pauseExact();
     try { draw.setPointerCapture(e.pointerId); } catch {}
     penFlip = e.pointerType === 'pen' && S.tool === 'pen' && ((e.buttons & 32) || e.button === 5);   // ペンのお尻（消しゴム側）で消せる
@@ -5114,7 +5117,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const [x, y] = toNorm(e), hit = picAt(x, y);
     if (hit?.t === 'x' && !hit.b) { sel = { vid: S.cur, f: txtOwner(hit), st: hit }; startText(hit, false); return; }
     const L = activeLayer();
-    if (!L.vis) { say(`レイヤー「${L.name}」は非表示なので文字を入れられません`); return; }
+    if (!lv(L, note(S.cur, frame()))) { say(`レイヤー「${L.name}」はこのフレームで非表示なので文字を入れられません`); return; }
     if (fbHidden) toggleHide(false);
     const T = S.text, s = T.size / (video.videoHeight || 1080);
     const st = { t: 'x', l: L.id, txt: '', c: T.color, s, bg: T.bg, bo: T.b, x: 0, y: y - s * (TXT_PAD + TXT_LH / 2), w: 0, h: 0 };
@@ -5230,8 +5233,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   function picAt(x, y) {
     if (!has()) return null;
-    for (const n of [note(S.cur, frame()), note(S.cur, 0)]) if (n) for (let i = S.layers.length - 1; i >= 0; i--) {
-      const L = S.layers[i]; if (!L.vis) continue;
+    const fn0 = note(S.cur, frame());
+    for (const n of [fn0, note(S.cur, 0)]) if (n) for (let i = S.layers.length - 1; i >= 0; i--) {
+      const L = S.layers[i]; if (!(n === fn0 ? lv(L, n) : L.vis)) continue;
       const ss = strokesOf(n, L.id);
       for (let j = ss.length - 1; j >= 0; j--) { const s = ss[j]; if ((s.t === 'i' || s.t === 'x') && s !== txtEdSt && x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) return s; }
     }
@@ -5393,18 +5397,25 @@ If you want to offset all timestamps of a track such that the first one is zero,
   $('#penHd').oninput = () => { const v = Number($('#penHd').value); if (S.tool === 'eraser') S.eraser.hard = v; else S.pen.hard = v; syncPenUI(); save(); };
 
   // ---- レイヤー操作 ----
+  // レイヤーの表示：全体の表示(L.vis) かつ このフレームで隠していない(n.hid)。目のアイコンはフレームごと
+  const lv = (L, n) => !!L && L.vis && !(n?.hid && n.hid.includes(L.id));
   const countLayer = (id) => { let c = 0; allRounds().flatMap(Object.values).forEach(o => Object.values(o).forEach(n => n.strokes.forEach(st => { if (st.l === id) c++; }))); return c; };
   const framesOfLayer = (id) => { let c = 0; allRounds().flatMap(Object.values).forEach(o => Object.values(o).forEach(n => { if (n.strokes.some(st => st.l === id)) c++; })); return c; };
   function renderLayers() {
     const act = activeLayer(), n = has() ? note(S.cur, frame()) : null;
-    $('#layerList').innerHTML = S.layers.slice().reverse().map(L => {   // 上にあるレイヤーを上に表示（Photoshopと同じ）
-      const c = strokesOf(n, L.id).length;
-      return `<div draggable="true" class="lrow${L === act ? ' on' : ''}${L.vis ? '' : ' off'}" data-id="${esc(L.id)}">
-        <button class="eye" title="表示／非表示（Alt+クリックでこのレイヤーだけ表示）">${L.vis ? '👁' : '—'}</button>
+    // このフレームに線があるレイヤー（と選択中のレイヤー）だけ並べる。ほかのコマのレイヤーは畳んでおく
+    const here = L => L === act || strokesOf(n, L.id).length || n?.hid?.includes(L.id) || (!has() && true);
+    const rev = S.layers.slice().reverse(), shown = rev.filter(here), others = rev.filter(L => !here(L));
+    const rowH = L => {
+      const c = strokesOf(n, L.id).length, v = lv(L, n);
+      return `<div draggable="true" class="lrow${L === act ? ' on' : ''}${v ? '' : ' off'}" data-id="${esc(L.id)}">
+        <button class="eye" title="このフレームで表示／非表示（Alt+クリックでこのレイヤーだけ表示）">${v ? '👁' : '—'}</button>
         <canvas class="lth" data-l="${esc(L.id)}" width="96" height="54"></canvas>
         <span class="ln" title="ダブルクリックで名前を変更">${esc(L.name)}</span>
         <span class="lc" title="このフレームの線の数">${c ? c + '本' : ''}</span>${L.op < 100 ? `<span class="lc">${Number(L.op) || 0}%</span>` : ''}</div>`;
-    }).join('');
+    };
+    $('#layerList').innerHTML = (has() ? `<div class="lhead">フレーム ${frame()} のレイヤー</div>` : '') + shown.map(rowH).join('')
+      + (others.length ? `<div class="lmore">${layerOthersOpen ? '▾' : '▸'} ほかのコマのレイヤー ${others.length}</div>` + (layerOthersOpen ? others.map(rowH).join('') : '') : '');
     $('#penLayer').innerHTML = $('#txtLayer').innerHTML = S.layers.slice().reverse().map(L => `<option value="${esc(L.id)}"${L === act ? ' selected' : ''}>${esc(L.name)}${L.vis ? '' : '（非表示）'}</option>`).join('');
     $('#lOp').value = act.op; $('#lOpV').textContent = act.op + '%';
     $('#lDel').disabled = S.layers.length <= 1;
@@ -5412,6 +5423,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   // 縮小画像：このフレームの、そのレイヤーの線だけを描く（再生中は重くならないよう止まってから）
   let thumbRaf = 0;
+  let layerOthersOpen = false;
   function layerThumbs() {
     if (thumbRaf || (has() && !video.paused)) return;
     thumbRaf = requestAnimationFrame(() => {
@@ -5437,9 +5449,10 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function redoOnNewLayer() {   // 今のレイヤーを隠して、すぐ上の新しいレイヤーで描き直す
     const old = activeLayer();
     addLayer(); const nw = activeLayer();
-    old.vis = false; nw.name = old.name.replace(/（描き直し\d*）$/, '') + '（描き直し）';
+    nw.name = old.name.replace(/（描き直し\d*）$/, '') + '（描き直し）';
+    if (has()) { const n = note(S.cur, frame()); if (n && strokesOf(n, old.id).length) n.hid = [...new Set([...(n.hid || []), old.id])]; }   // 隠すのはこのフレームだけ
     if (S.tool !== 'pen') setTool('pen');
-    layersChanged(); say(`「${old.name}」を隠して、新しいレイヤーで描き直せます（目のアイコンで見比べ）`);
+    layersChanged(); say(`このフレームの「${old.name}」を隠して、新しいレイヤーで描き直せます（目のアイコンで見比べ）`);
   }
   function dupLayer() {
     const L = activeLayer(), id = 'L' + Date.now().toString(36), i = S.layers.indexOf(L);
@@ -5481,9 +5494,21 @@ If you want to offset all timestamps of a track such that the first one is zero,
     inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') fin(true); if (e.key === 'Escape') fin(false); });
     inp.addEventListener('blur', () => fin(true));
   }
+  // 目のアイコン：今のフレームだけで表示／非表示（ほかのフレームはそのまま）
+  function setLayerVis(L, solo) {
+    if (!L || !has()) return;
+    const f = frame(), n = note(S.cur, f, true);
+    const hid = new Set(n.hid || []);
+    const flip = (x, show) => { if (show) { x.vis = true; hid.delete(x.id); } else hid.add(x.id); };
+    if (solo) { const only = S.layers.every(x => x === L || !lv(x, n)) && lv(L, n); S.layers.forEach(x => flip(x, only || x === L)); }
+    else flip(L, !lv(L, n));
+    if (hid.size) n.hid = [...hid]; else delete n.hid;
+    tidyNote(S.cur, f); layersChanged();
+  }
   $('#layerList').addEventListener('click', e => {
+    if (e.target.closest('.lmore')) { layerOthersOpen = !layerOthersOpen; renderLayers(); return; }
     const row = e.target.closest('.lrow'); if (!row || e.target.closest('input')) return;
-    if (e.target.closest('.eye')) { const L = layerById(row.dataset.id); if (e.altKey) { const solo = S.layers.every(x => x === L || !x.vis) && L.vis; S.layers.forEach(x => x.vis = solo || x === L); } else L.vis = !L.vis; layersChanged(); return; }
+    if (e.target.closest('.eye')) { setLayerVis(layerById(row.dataset.id), e.altKey); return; }
     if (row.dataset.id !== S.layer) selectLayer(row.dataset.id);
   });
   $('#layerList').addEventListener('dblclick', e => { const row = e.target.closest('.lrow'); if (row && !e.target.closest('.eye, input')) renameLayer(row); });
@@ -5512,6 +5537,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
         const n = o[f]; if (!n.strokes?.length) continue;
         const dst = ((to[vid] ||= {})[f] ||= { memo: '', strokes: [] });
         dst.strokes.push(...n.strokes); n.strokes = [];
+        if (n.hid) { dst.hid = n.hid; delete n.hid; }
         if (!n.memo) delete o[f];
       }
       if (!Object.keys(o).length) delete from[vid];
@@ -6107,7 +6133,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       const lc = document.createElement('canvas'); lc.width = W; lc.height = H; const lx = lc.getContext('2d');
       const sc = document.createElement('canvas'); sc.width = W; sc.height = H;
       S.layers.forEach(L => {
-        if (!L.vis) return;
+        if (!lv(L, nt)) return;
         const ss = strokesOf(nt, L.id); if (!ss.length) return;
         lx.clearRect(0, 0, W, H); ss.forEach(st => drawStroke(lx, st, mm, sc));
         bx.globalAlpha = L.op / 100; bx.drawImage(lc, 0, 0); bx.globalAlpha = 1;
@@ -6730,7 +6756,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     await Promise.all(items.filter(it => it.t === 'i').map(it => pic(it.k).ready));
     const ih = (it) => it.h ?? it.w * 9 / 16;
     // 文字は動画の外にも置けるので、その分も入る大きさにする（全フレームの文字＋FBの文字）
-    const txb = oPen ? [...(note(S.cur, 0)?.strokes || []), ...fbFrames(S.cur).flatMap(g => note(S.cur, g).strokes)].filter(s => s.t === 'x' && S.layers.find(L => L.id === s.l)?.vis) : [];
+    const txb = oPen ? [...(note(S.cur, 0)?.strokes || []), ...fbFrames(S.cur).flatMap(g => { const q = note(S.cur, g); return q.strokes.filter(s => lv(layerById(s.l), q)); })].filter(s => s.t === 'x' && layerById(s.l)?.vis) : [];
     let bx0 = 0, by0 = 0, bx1 = 1, by1 = 1;
     [...items, ...txb].forEach(it => { bx0 = Math.min(bx0, it.x); by0 = Math.min(by0, it.y); bx1 = Math.max(bx1, it.x + it.w); by1 = Math.max(by1, it.y + ih(it)); });
     if ((items.length || txb.length) && (bx0 < 0 || by0 < 0 || bx1 > 1 || by1 > 1)) { const pd = 0.04; bx0 -= pd; by0 -= pd; bx1 += pd; by1 += pd; }
@@ -6820,7 +6846,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       if (oPen && nt?.strokes.length) {
         bg.save(); bg.beginPath(); bg.rect(offX, offY, vw, vh); bg.clip();   // 動画の外には描かない（画面と同じ）
         S.layers.forEach(L => {
-          if (!L.vis) return;
+          if (!lv(L, nt)) return;
           const ss = strokesOf(nt, L.id).filter(s => s.t !== 'x'); if (!ss.length) return;
           lx.clearRect(0, 0, W, H); ss.forEach(st => drawStroke(lx, st, mm, scr));
           bg.globalAlpha = L.op / 100; bg.drawImage(lc, 0, 0); bg.globalAlpha = 1;
@@ -6831,7 +6857,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
         const gn = note(S.cur, 0);
         S.layers.forEach(L => {
           if (!L.vis) return;
-          const ss = [...strokesOf(gn, L.id), ...(nt ? strokesOf(nt, L.id) : [])].filter(s => s.t === 'x'); if (!ss.length) return;
+          const ss = [...strokesOf(gn, L.id), ...(nt && lv(L, nt) ? strokesOf(nt, L.id) : [])].filter(s => s.t === 'x'); if (!ss.length) return;
           bg.globalAlpha = L.op / 100; ss.forEach(st => drawStroke(bg, st, mm, scr)); bg.globalAlpha = 1;
         });
       }
