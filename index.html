@@ -522,6 +522,7 @@
         <button data-act="openProject">プロジェクトを開く…</button>
         <hr>
         <button data-act="exportPptx">パワポを書き出す (.pptx)</button>
+        <button data-act="exportFb">FBを渡す用に書き出す（画像＋文字）…</button>
         <button data-act="exportFrame">今のフレームを画像で保存 (.png)<span>Ctrl+Shift+S</span></button>
         <button data-act="exportSel">選んだ資料を1枚の画像で保存 (.png)<span>Ctrl+Shift+E</span></button>
         <button data-act="exportMp4">MP4 で書き出す（ペン・メモ・画像ごと）…</button>
@@ -5923,6 +5924,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     storage: () => showStorage().catch(e => say('確認できませんでした：' + (e?.message || e))),
     library: () => { $('#libPop').dataset.anchor = 'menu'; openLib($('#menuFile')); },
     exportFrame: () => exportFrame().catch(err => say('画像を保存できませんでした：' + err.message)),
+    exportFb: () => exportFb().catch(err => say('FBを書き出せませんでした：' + err.message)),
     exportSel: () => exportSel().catch(err => say('画像を保存できませんでした：' + err.message)),
     storeVideos: () => toggleStoreVideos(),
     rename: () => renameCurrent(),
@@ -6301,6 +6303,117 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const nm = (S.name || V().name.replace(/\.[^.]+$/, '')).replace(/[\\/:*?"<>|]/g, '_').slice(0, 50);
     const fn = `${nm}_資料${picked ? '_選択' : ''}.png`;
     if (await saveFile(fn, blob)) say(`${items.length}個を1枚の画像で保存しました：${fn}（${W}×${H}px）`);
+  }
+
+  // ================= FBを渡す用に書き出す（このツールを使っていない人向け：画像とFBの文字をセットで） =================
+  function drawFbLayers(bx, nt, W, H) {   // ペン・文字・貼った画像を、レイヤーごとに合成（画面と同じ見え方）
+    if (!nt?.strokes.length) return;
+    const mm = { ox: 0, oy: 0, sw: W / dpr, sh: H / dpr };
+    const lc = document.createElement('canvas'); lc.width = W; lc.height = H; const lx = lc.getContext('2d');
+    const sc = document.createElement('canvas'); sc.width = W; sc.height = H;
+    S.layers.forEach(L => {
+      if (!lv(L, nt)) return;
+      const ss = strokesOf(nt, L.id); if (!ss.length) return;
+      lx.clearRect(0, 0, W, H); ss.forEach(st => drawStroke(lx, st, mm, sc));
+      bx.globalAlpha = L.op / 100; bx.drawImage(lc, 0, 0); bx.globalAlpha = 1;
+    });
+  }
+  function wrapText(ctx, text, maxW) {
+    const lines = [];
+    String(text).split('\n').forEach(par => { let t = ''; for (const ch of par) { if (ctx.measureText(t + ch).width > maxW && t) { lines.push(t); t = ch; } else t += ch; } lines.push(t); });
+    return lines;
+  }
+  async function exportFb() {
+    if (!S.videos.length) { say('先に動画を追加してください'); return; }
+    const q = ask('', 'FBを渡す用に書き出す');
+    $('#modalText').innerHTML = `このツールを使っていない人にも見やすいように、FBのあるコマの画像（ペン込み）とFBの文字をセットにします。<br><br>
+      <label>形式：<select id="fbFmt"><option value="pptx">パワポ（.pptx）… 1コマ＝1枚のスライド</option><option value="zip">画像（.zip）… 文字入りの画像を1コマ1枚</option></select></label><br><br>
+      <label>動画：<select id="fbVids"><option value="cur">今の動画だけ</option><option value="all">すべての動画</option></select></label><br><br>
+      <label><input type="checkbox" id="fbDone"> 完了済みのFBも入れる</label>`;
+    if (!(await q)) return;
+    const fmt = $('#fbFmt').value, withDone = $('#fbDone').checked;
+    const vids = ($('#fbVids').value === 'all' ? S.videos : [V()]).filter(Boolean);
+    // 対象を集める
+    const jobs = [];
+    vids.forEach(v => fbFrames(v.id).forEach(f => {
+      const n = S.notes[v.id][f], todo = !!n.memo || (n.strokes.length > 0 && !n.done);
+      const parts = [];
+      if (todo) parts.push({ txt: n.memo || '', done: false });
+      if (withDone && n.done) parts.push({ txt: n.dmemo || '', done: true });
+      if (parts.length) jobs.push({ v, f, n, parts });
+    }));
+    if (!jobs.length) { say(withDone ? 'FBがありません' : '未完了のFBがありません（完了済みも入れるにはチェックを入れてください）'); return; }
+    const noUrl = [...new Set(jobs.filter(j => !j.v.url).map(j => j.v.name))];
+    // 進み具合
+    let cancel = false;
+    ask('', 'FBを書き出しています', false, true).then(() => { cancel = true; });
+    $('#mYes').textContent = 'やめる';
+    const pg = document.createElement('div'); $('#modalText').append(pg);
+    const box = document.createElement('div'); box.style.cssText = 'position:fixed;right:0;bottom:0;width:2px;height:2px;overflow:hidden;opacity:.01;pointer-events:none;'; document.body.append(box);
+    const el = document.createElement('video'); Object.assign(el, { muted: true, playsInline: true, preload: 'auto' }); box.append(el);
+    const seek = (t) => new Promise(res => { let ok = false; const fin = () => { if (ok) return; ok = true; el.removeEventListener('seeked', fin); res(); }; el.addEventListener('seeked', fin); setTimeout(fin, 6000); el.currentTime = t; });
+    const shots = [];
+    try {
+      let curUrl = null;
+      for (let i = 0; i < jobs.length; i++) {
+        if (cancel) break;
+        const j = jobs[i]; pg.textContent = `${i + 1} / ${jobs.length}　${j.v.name} F${j.f}`;
+        await picsReady(j.n.strokes);
+        let W = 1280, H = 720, c = document.createElement('canvas');
+        if (j.v.url) {
+          if (curUrl !== j.v.url) { curUrl = j.v.url; el.src = j.v.url; await waitEv(el, 'loadedmetadata', 8000); }
+          await seek(Math.max(0, (j.f - 0.5) / (j.v.fps || 30)));
+          const sc = Math.min(1, 1280 / (el.videoWidth || 1280)); W = Math.round((el.videoWidth || 1280) * sc); H = Math.round((el.videoHeight || 720) * sc);
+          c.width = W; c.height = H; const x = c.getContext('2d');
+          try { x.drawImage(el, 0, 0, W, H); } catch {}
+          drawFbLayers(x, j.n, W, H);
+        } else { c.width = W; c.height = H; const x = c.getContext('2d'); x.fillStyle = '#222'; x.fillRect(0, 0, W, H); drawFbLayers(x, j.n, W, H); }
+        shots.push({ ...j, c, W, H });
+      }
+    } finally { el.removeAttribute('src'); el.load(); box.remove(); }
+    if (cancel) { $('#modal').classList.add('hidden'); say('書き出しをやめました'); return; }
+    pg.textContent = 'ファイルを作っています…';
+    const nm0 = S.name || V()?.name.replace(/\.[^.]+$/, '') || 'FB', base = nm0.replace(/[\\/:*?"<>|]/g, '_').slice(0, 50), rd = S.fb?.rounds?.find(r => r.id === S.fb.cur)?.name || '';
+    const label = (sh) => `${vids.length > 1 ? sh.v.name + '　' : ''}F${sh.f}（${((sh.f - 1) / (sh.v.fps || 30)).toFixed(2)}秒）`;
+    const textOf = (sh) => sh.parts.map(p => (p.done ? '【完了】' : '') + (p.txt || (sh.n.strokes.some(s => s.t === 'x') ? '（画像の中の文字を参照）' : '（ペンのみ）'))).join('\n\n');
+    let blob, fn;
+    if (fmt === 'pptx') {
+      const pptx = new PptxGenJS(); pptx.layout = 'LAYOUT_WIDE';
+      const FONT = 'Meiryo';
+      const t0 = pptx.addSlide(); t0.background = { color: 'FFFFFF' };
+      t0.addText(`${nm0}　FB一覧${rd ? '（' + rd + '）' : ''}`, { x: 0.5, y: 0.4, w: 12.3, h: 0.7, fontFace: FONT, fontSize: 26, bold: true, color: '000000' });
+      t0.addText(shots.map((sh, i) => ({ text: `${i + 1}. ${label(sh)}　${textOf(sh).replace(/\n+/g, ' / ').slice(0, 80)}`, options: { breakLine: true } })),
+        { x: 0.5, y: 1.3, w: 12.3, h: 5.8, fontFace: FONT, fontSize: shots.length > 18 ? 10 : 14, color: '333333', valign: 'top' });
+      shots.forEach((sh, i) => {
+        const sl = pptx.addSlide(); sl.background = { color: 'FFFFFF' };
+        sl.addText(`${i + 1}. ${label(sh)}`, { x: 0.4, y: 0.2, w: 12.5, h: 0.55, fontFace: FONT, fontSize: 20, bold: true, color: '000000', margin: 0 });
+        const bw = 8.6, bh = 6.4, a = sh.W / sh.H; let w = bw, h = w / a; if (h > bh) { h = bh; w = h * a; }
+        sl.addImage({ data: sh.c.toDataURL('image/jpeg', 0.88), x: 0.4, y: 0.9, w, h });
+        sl.addText(textOf(sh), { x: 0.4 + w + 0.3, y: 0.9, w: 13.333 - (0.4 + w + 0.3) - 0.4, h, fontFace: FONT, fontSize: 20, color: '000000', valign: 'top', fill: { color: 'FFF8DC' }, margin: 8 });
+      });
+      blob = await pptx.write({ outputType: 'blob' }); fn = `${base}_FB.pptx`;
+    } else {
+      const files = [], list = [];
+      for (let i = 0; i < shots.length; i++) {
+        const sh = shots[i], W = sh.W, fsz = Math.max(18, Math.round(W / 40));
+        const tmp = document.createElement('canvas').getContext('2d'); tmp.font = `${fsz}px "Yu Gothic UI", "Meiryo", sans-serif`;
+        const head = label(sh), lines = wrapText(tmp, textOf(sh), W - fsz * 2), lh = fsz * 1.45;
+        const H2 = sh.H + Math.round(fsz * 2.2 + lines.length * lh + fsz);
+        const c = document.createElement('canvas'); c.width = W; c.height = H2; const x = c.getContext('2d');
+        x.fillStyle = '#fff'; x.fillRect(0, 0, W, H2); x.drawImage(sh.c, 0, 0);
+        x.fillStyle = '#000'; x.textBaseline = 'top';
+        x.font = `bold ${fsz}px "Yu Gothic UI", "Meiryo", sans-serif`; x.fillText(`${i + 1}. ${head}`, fsz, sh.H + fsz * 0.6);
+        x.font = `${fsz}px "Yu Gothic UI", "Meiryo", sans-serif`; lines.forEach((l, k) => x.fillText(l, fsz, sh.H + fsz * 2.2 + k * lh));
+        const b = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.9));
+        const name = `${String(i + 1).padStart(2, '0')}_${vids.length > 1 ? sh.v.name.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '_').slice(0, 30) + '_' : ''}F${sh.f}.jpg`;
+        files.push({ name, data: new Uint8Array(await b.arrayBuffer()) });
+        list.push(`${i + 1}. ${head}\r\n${textOf(sh).replace(/\n/g, '\r\n')}\r\n`);
+      }
+      files.push({ name: 'FB一覧.txt', data: new TextEncoder().encode('\ufeff' + list.join('\r\n')) });
+      blob = makeZip(files); fn = `${base}_FB.zip`;
+    }
+    $('#modal').classList.add('hidden');
+    if (await saveFile(fn, blob)) say(`FB ${shots.length}件を書き出しました：${fn}${noUrl.length ? `（動画が未接続のため背景なし：${noUrl.join('、')}）` : ''}`);
   }
 
   // ================= ドラッグで並べ替え（動画の一覧・集中モードのタブ・ペンのレイヤー） =================
