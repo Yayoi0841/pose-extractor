@@ -413,6 +413,9 @@
   .rrow button { flex: none; }
   #recentBox .rall { width: 100%; background: none; color: var(--sub); height: 22px; }
   #keys tr.h td { background: var(--bg2); color: var(--sub); }
+  /* ペンタブ：画面のスクロールやジェスチャーに取られないように（タップ・ドラッグがそのまま届く） */
+  #viewport, #timebar, #ts, #rs, #rsBar, .bitem, #rTree, #xAddr, .tool, .tsctl button, .vitem { touch-action: none; }
+  #timebar, #shelf, #rTree, #xAddr { -webkit-user-select: none; user-select: none; }
   /* 下のバー：動画の開始・終了の表示をなくし、見出し付きで3つのまとまりに */
   .rsrow { min-height: 34px; padding: 4px 8px; gap: 4px 8px; }
   .rsrow .rlab { color: var(--sub); font-size: 11px; white-space: nowrap; flex: none; }
@@ -4523,7 +4526,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   const tsFrame = (e) => { const r = ts.getBoundingClientRect(), v = V(); return Math.floor(v.rStart + (e.clientX - r.left - 8) / ((r.width - 16) / Math.max(1, v.rEnd - v.rStart + 1))); };
   dragOn(ts, (e) => { if (!has() || e.button !== 0) return false; scrubTo(tsFrame(e)); }, (e) => scrubTo(tsFrame(e)), () => scrubEnd());
   ts.addEventListener('contextmenu', e => {   // 右クリック：近くのキーを削除
-    e.preventDefault(); if (!has()) return;
+    e.preventDefault(); if (!has() || e.pointerType === 'pen' || e.pointerType === 'touch') return;   // ペンの長押しでキーが消えないように
     const f = tsFrame(e), r = ts.getBoundingClientRect(), v = V(), px = (r.width - 16) / Math.max(1, v.rEnd - v.rStart + 1);
     const near = (S.keys[S.cur] || []).reduce((best, k) => Math.abs(k - f) * px <= Math.max(6, px) && (best == null || Math.abs(k - f) < Math.abs(best - f)) ? k : best, null);
     if (near == null) { say('右クリックしたところにキーはありません'); return; }
@@ -4577,8 +4580,10 @@ If you want to offset all timestamps of a track such that the first one is zero,
     el.addEventListener('pointerdown', e => {
       if (down(e) === false) return;
       e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch {}
-      const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); upCb?.(); };
-      el.addEventListener('pointermove', move); el.addEventListener('pointerup', up);
+      // ペンタブはジェスチャーに取られて pointerup が来ないことがあるので、キャンセル・キャプチャ解除でも必ず終える
+      let done = false;
+      const up = () => { if (done) return; done = true; el.removeEventListener('pointermove', move); ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => el.removeEventListener(t, up)); upCb?.(); };
+      el.addEventListener('pointermove', move); ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => el.addEventListener(t, up));
     });
   }
 
@@ -4843,10 +4848,11 @@ If you want to offset all timestamps of a track such that the first one is zero,
 
   const toNorm = (e) => { const r = vp.getBoundingClientRect(), m = M(); return [(e.clientX - r.left - m.ox) / m.sw, (e.clientY - r.top - m.oy) / m.sh]; };
   const pressureOf = (e) => e.pointerType === 'mouse' ? 1 : (e.pressure > 0 ? e.pressure : 0.5);
-  const curSize = () => S.tool === 'eraser' ? S.eraser.size : S.pen.size;
+  const curSize = () => (S.tool === 'eraser' || penFlip) ? S.eraser.size : S.pen.size;
   const curHard = () => S.tool === 'eraser' ? S.eraser.hard : S.pen.hard;
+  let penFlip = false;
   function newStroke() {
-    const er = S.tool === 'eraser', h = curHard() / 100;
+    const er = S.tool === 'eraser' || penFlip, h = curHard() / 100;
     const st = { t: er ? 'e' : 'b', c: S.pen.color, s: curSize() / (video.videoWidth || 1000), o: er ? 1 : S.pen.opacity / 100, pr: S.pen.pressure, l: activeLayer().id, pts: [] };
     if (h < 1) st.h = h;
     if (!er && S.pen.pressure && S.pen.po) st.po = true;
@@ -4873,6 +4879,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (!L.vis) { say(`レイヤー「${L.name}」は非表示なので描けません（目のアイコンで表示してください）`); return; }
     pauseExact();
     try { draw.setPointerCapture(e.pointerId); } catch {}
+    penFlip = e.pointerType === 'pen' && S.tool === 'pen' && ((e.buttons & 32) || e.button === 5);   // ペンのお尻（消しゴム側）で消せる
     const [x, y] = toNorm(e), p = pressureOf(e);
     const f = frame();
     if (e.shiftKey && lastPt && lastPt.key === `${S.cur}:${f}`) {   // Shift+クリックで直線
