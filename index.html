@@ -369,7 +369,8 @@
   #recentDlg.hidden { display: none; }
   #recentDlg .xtitle { display: flex; align-items: center; gap: 12px; height: 34px; padding: 0 8px 0 14px; background: #1f1f1f; border-bottom: 1px solid #111; }
   #recentDlg .xtitle b { font-size: 13px; } #recentDlg .xsub { color: #7fbf7f; font-size: 11px; }
-  #recentDlg .xclose { height: 24px; padding: 0 12px; }
+  #recentDlg .xclose { height: 30px; padding: 0 16px; margin-right: 12px; background: var(--hl); color: #fff; font-weight: 600; font-size: 13px; border-radius: 4px; box-shadow: 0 0 0 1px rgba(255,255,255,.15); }
+  #recentDlg .xclose:hover { background: #3d8ee6; }
   #recentDlg .xnav, #recentDlg .xcmd { display: flex; align-items: center; gap: 4px; padding: 6px 10px; background: #2b2b2b; border-bottom: 1px solid #1c1c1c; }
   #recentDlg .xnav > button { width: 28px; height: 26px; background: transparent; font-size: 14px; } #recentDlg .xnav > button:hover:not(:disabled) { background: #3d3d3d; } #recentDlg button:disabled { opacity: .35; }
   #xAddr { flex: 1; display: flex; align-items: center; gap: 2px; height: 26px; padding: 0 6px; background: #1d1d1d; border: 1px solid #3a3a3a; border-radius: 4px; overflow: hidden; white-space: nowrap; margin: 0 6px; }
@@ -1071,7 +1072,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 </div>
 
 <div id="recentDlg" class="hidden">
-  <div class="xtitle"><b>🗂 作業の整理</b><span class="xsub">このPCのブラウザの中だけに保存（外部送信なし）</span><span style="flex:1"></span><button id="recentClose" class="xclose" title="Esc">✕ ツールに戻る</button></div>
+  <div class="xtitle"><button id="recentClose" class="xclose" title="元の画面に戻る（Esc）">← ツールに戻る</button><b>🗂 作業の整理</b><span class="xsub">このPCのブラウザの中だけに保存（外部送信なし）</span><span style="flex:1"></span></div>
   <div class="xnav"><button id="xBack" title="戻る (Alt+←)">←</button><button id="xFwd" title="進む (Alt+→)">→</button><button id="xUp" title="1つ上へ (Backspace)">↑</button><div id="xAddr"></div><input id="rSearch" type="search" placeholder="🔍 検索（Ctrl+F）" spellcheck="false"></div>
   <div class="xcmd"><button id="xNew" class="xprim" title="新しいフォルダー（Ctrl+Shift+N）／新しい作業">＋ 新規 ▾</button><span class="xsep"></span><button id="xOpen" title="Enter・ダブルクリック">開く</button><button id="xRen" title="F2">名前の変更</button><button id="xMove" title="ドラッグでも移動できます">移動 ▾</button><button id="xPin" title="上に固定・自動で消えない">★ ピン留め</button><button id="xDel" title="Delete">削除</button><span style="flex:1"></span><select id="rSort" title="並べ替え"><option value="d">並べ替え：更新日時</option><option value="n">並べ替え：名前</option></select><span class="xseg"><button id="xvList" class="on" title="詳細">☰ 詳細</button><button id="xvIcon" title="大アイコン">▦ アイコン</button></span></div>
   <div class="rbody"><div id="rTree"></div><div id="recentList" class="xlist" tabindex="0"></div></div>
