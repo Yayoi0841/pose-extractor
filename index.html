@@ -413,6 +413,10 @@
   .rrow button { flex: none; }
   #recentBox .rall { width: 100%; background: none; color: var(--sub); height: 22px; }
   #keys tr.h td { background: var(--bg2); color: var(--sub); }
+  /* 一時作業中：保存されないことがひと目で分かるように */
+  body.tempMode #bTemp { background: #b8741a; color: #fff; }
+  body.tempMode #viewport { box-shadow: inset 0 0 0 2px #b8741a; }
+  body.tempMode #saveState { color: #f0b060; }
   /* ペンタブ：画面のスクロールやジェスチャーに取られないように（タップ・ドラッグがそのまま届く） */
   #viewport, #timebar, #ts, #rs, #rsBar, .bitem, #rTree, #xAddr, .tool, .tsctl button, .vitem { touch-action: none; }
   #timebar, #shelf, #rTree, #xAddr { -webkit-user-select: none; user-select: none; }
@@ -532,6 +536,7 @@
     <button class="mi" id="mFocus" title="ビューポートに集中 (Shift+Y)">⛶ 集中</button>
     <button class="mi" id="mFull" title="ブラウザ全画面">全画面</button>
     <button class="mi" id="mGuide" title="使い方ガイド（F1）">？ 使い方</button>
+    <button class="mi" id="bTemp" title="一時作業：保存しないで動画を見る（閉じたり終えたりすると全部消えます）。今の作業は保存してから切り替えます">🕶 一時作業</button>
     <span class="badge" id="badge" title="このページは通信が禁止されています。データはこのPCのブラウザ内にだけ保存され、外部には送信されません。">🔒 外部送信なし</span>
   </div>
 
@@ -808,6 +813,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <li><b>パワポ</b>：「ファイル → パワポを書き出す」（日目を聞かれます）</li>
 <li><b>登録の確認・やり直し</b>：「表示 → ポーズ一覧」</li>
 <li><b>Maya用</b>：「ファイル → Maya 用に書き出す」（フレーム一覧と 1-01.jpg など）</li>
+<li><b>一時作業</b>：右上の「🕶 一時作業」で保存しないモードに。ちょっと見るだけのときに（終えるか閉じると消えます。前の作業はそのまま）</li>
 <li><b>動画（MP4）</b>：「ファイル → MP4 で書き出す」。ペン・メモ・置いた画像やサブ動画・軌道をそのまま焼き込みます。FBのコマは数秒止めて見せられます（音は入りません）</li>
 <li>タイムスライダーにキー間のコマ数（6f など）が出ます</li>
 </ul>
@@ -3067,6 +3073,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (!db) { $('#saveState').textContent = '⚠ 自動保存できません（ファイル→プロジェクトを保存 を使ってください）'; return; }
     try {
       await tx('readwrite', st => st.put(prefs(), 'prefs'));
+      if (tempMode) { $('#saveState').textContent = '🕶 一時作業中（何も保存しません）'; return; }
       if (isEmpty() && !sessId) { $('#saveState').textContent = ''; return; }   // 空の作業は保存しない
       if (!sessId) { sessId = 's' + Date.now().toString(36); ssSet(sessId); }
       const snap = snapshot(), packed = await packSnap(snap);
@@ -3377,6 +3384,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   async function openSession(id) {
     if (id === sessId) return;
+    if (tempMode) { clearTimeout(saveTimer); saveTimer = null; tempMode = false; tempPrev = null; syncTemp(); }   // 保存した作業を開いたら一時作業は終わり（内容は消える）
     try {
       if (saveTimer) await writeNow();
       const d = await unpackSnap(await tx('readonly', st => st.get('sess:' + id)));
@@ -3402,7 +3410,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   // 保存先はこのPCのブラウザの中だけ。外部には送らない
   const MAX_FILE = 2 * 1024 ** 3;
   async function storeFile(v) {
-    if (!db || !S.storeVideos || !v.file || v.stored) return;
+    if (!db || !S.storeVideos || !v.file || v.stored || tempMode) return;
     try {
       const k = 'file:' + v.id;
       if (await tx('readonly', st => st.getKey(k))) { v.stored = true; return; }
@@ -3485,6 +3493,35 @@ If you want to offset all timestamps of a track such that the first one is zero,
     applyState({ videos: [], motions: [], notes: {} }, false);
     $('#frameBox').style.display = 'none';
   }
+  // ================= 一時作業（保存しないモード）：ちょっと見るだけのときに。ワンボタンで切り替え =================
+  var tempMode = false, tempPrev = null;
+  function syncTemp() {
+    document.body.classList.toggle('tempMode', tempMode);
+    $('#bTemp').textContent = tempMode ? '🕶 一時作業中 ▾' : '🕶 一時作業';
+    if (tempMode) $('#saveState').textContent = '🕶 一時作業中（何も保存しません）';
+  }
+  async function startTemp() {
+    if (tempMode) return;
+    if (saveTimer) await writeNow();
+    tempPrev = sessId; sessId = null; ssSet(null); tempMode = true;
+    resetWork(); renderRecent(); syncTemp();
+    say('一時作業を始めました。ここで読み込んだ動画・ペン・メモは保存されず、終えるかページを閉じると消えます（前の作業はそのまま残っています）');
+  }
+  async function endTemp(keep) {
+    if (!tempMode) return;
+    if (!keep) { clearTimeout(saveTimer); saveTimer = null; }   // 一時作業の内容を保存させない
+    tempMode = false; syncTemp();
+    if (keep) { await writeNow(); for (const v of S.videos) storeFile(v); renderRecent(); say('一時作業を普通の作業として保存しました（「最近の作業」から開けます）'); return; }
+    const back = tempPrev; tempPrev = null;
+    resetWork(); $('#saveState').textContent = '';
+    if (back && recentIdx.some(r => r.id === back)) await openSession(back); else renderRecent();
+    say('一時作業を終えました（内容は消えました）' + (back ? '。前の作業に戻りました' : ''));
+  }
+  $('#bTemp').onclick = (e) => {
+    if (!tempMode) { startTemp(); return; }
+    const b = e.currentTarget.getBoundingClientRect();
+    ctxMenu(b.left, b.bottom + 2, [['✕ 一時作業を終える（内容は消える）', () => endTemp(false)], ['💾 この作業を保存して残す', () => endTemp(true)]]);
+  };
   async function newWork() {
     if (saveTimer) await writeNow();
     sessId = null; ssSet(null); resetWork(); renderRecent();
@@ -4948,7 +4985,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     return p;
   }
   async function keepPic(k) {   // ブラウザに保存（済みなら何もしない）
-    const p = pics.get(k); if (!db || !p?.url || imgStored.has(k)) return;
+    const p = pics.get(k); if (!db || !p?.url || imgStored.has(k) || tempMode) return;
     try { if (!(await tx('readonly', st => st.getKey(k)))) await tx('readwrite', st => st.put(p.url, k)); imgStored.add(k); } catch {}
   }
   const picKeysIn = (notes) => { const s = new Set(); Object.values(notes || {}).forEach(o => Object.values(o).forEach(n => (n.strokes || []).forEach(st => st.t === 'i' && s.add(st.k)))); return s; };
