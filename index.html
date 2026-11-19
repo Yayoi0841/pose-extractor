@@ -883,7 +883,8 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <li><b>レイヤー</b>：左の一覧で動画の下に並ぶ。👁 で表示切替・ドラッグで重なり順・ダブルクリックで名前</li>
 <li>動画の「▼ 資料N」でレイヤーをしまう／出す（しまっても画面からは消えません）</li>
 </ul>
-<p class="tip">置いた物は全コマ共通で、ベース動画ごとに覚えます。「ペンを隠す」（<kbd>H</kbd>）では消えません。</p>
+<p><b>まとめて動かす</b>（選択ツール <kbd>V</kbd>）：何もない所からドラッグで範囲選択／<kbd>Shift</kbd>+クリックで追加・外す／<kbd>Ctrl</kbd>+<kbd>A</kbd> で全部選択。選んだ物のどれかをドラッグすると一緒に動きます。<kbd>Delete</kbd> でまとめて削除、<kbd>Ctrl</kbd>+<kbd>Z</kbd> で一度に戻ります。</p>
+<p class="tip">置いた物は全コマ共通で、ベース動画ごとに覚えます。「ペン表示」をオフ（<kbd>H</kbd>）では消えません。</p>
 </section>
 
 <section data-t="文字 テキスト 字幕 注釈 Figma">
@@ -5217,6 +5218,31 @@ If you want to offset all timestamps of a track such that the first one is zero,
   });
   // ---- 選択・移動・拡大縮小 ----
   let sel = null, xf = null;   // sel = { vid, f, st }
+  // 複数選択（Figma のように範囲ドラッグ／Shift+クリック）。msel = [{ st, f }]（サブ資料は f なし）
+  let msel = [], mq = null;
+  const itemOk = (o) => has() && (o.st.b ? boardOf().includes(o.st) && !o.st.hide : (o.f === frame() || o.f === 0) && note(S.cur, o.f)?.strokes.includes(o.st));
+  const mItems = () => S.tool === 'select' ? (msel = msel.filter(itemOk)) : [];
+  const bH = (s) => s.h ?? s.w * 9 / 16;
+  function allPickables() {   // 画面で選べる物すべて（このコマの画像・文字、全フレームの文字、サブ資料）
+    if (!has()) return [];
+    const out = [], f = frame();
+    for (const [g, n] of [[f, note(S.cur, f)], [0, note(S.cur, 0)]]) if (n) n.strokes.forEach(s => { if ((s.t === 'i' || s.t === 'x') && (g === f ? lv(layerById(s.l), n) : layerById(s.l)?.vis)) out.push({ st: s, f: g }); });
+    boardOf().forEach(s => { if (!s.hide) out.push({ st: s }); });
+    return out;
+  }
+  const ownerOf = (st) => st.b ? undefined : txtOwner(st);
+  function toggleMulti(st) {
+    const cur = mItems().length ? msel : (selSt() ? [{ st: sel.st, f: sel.st.b ? undefined : sel.f }] : []);
+    const i = cur.findIndex(o => o.st === st);
+    if (i >= 0) cur.splice(i, 1); else cur.push({ st, f: ownerOf(st) });
+    setMulti(cur);
+  }
+  function setMulti(list) {
+    if (list.length === 1) { msel = []; sel = { vid: S.cur, f: list[0].st.b ? frame() : list[0].f, st: list[0].st }; }
+    else { msel = list; sel = null; }
+    paintDrawing(false); syncBctl?.();
+    if (list.length > 1) say(`${list.length}個を選択中（ドラッグでまとめて移動／Delete で削除）`);
+  }
   const selSt = () => !(sel && has() && sel.vid === S.cur) ? null : sel.st.b ? (boardOf().includes(sel.st) && !sel.st.hide ? sel.st : null) : ((sel.f === frame() || sel.f === 0) && note(S.cur, sel.f)?.strokes.includes(sel.st)) ? sel.st : null;
   const scr = (x, y, m = M()) => [m.ox + x * m.sw, m.oy + y * m.sh];
   function corners(st) {   // 画面上の角（左上・右上・右下・左下の順。反転中も見た目どおり）
@@ -5225,6 +5251,18 @@ If you want to offset all timestamps of a track such that the first one is zero,
     return [[xs[0], y0], [xs[1], y0], [xs[1], y1], [xs[0], y1]];
   }
   function drawSel() {
+    const ms = mItems();
+    if (ms.length || mq) {
+      const k = dpr, m = M();
+      dctx.save(); dctx.lineWidth = 1 * k; dctx.strokeStyle = '#4aa3ff';
+      ms.forEach(o => { const c = corners(o.st.b ? { ...o.st, h: bH(o.st) } : o.st); dctx.strokeRect(c[0][0] * k, c[0][1] * k, (c[2][0] - c[0][0]) * k, (c[2][1] - c[0][1]) * k); });
+      if (mq) {
+        const [x0, y0] = scr(Math.min(mq.x0, mq.x1), Math.min(mq.y0, mq.y1), m), [x1, y1] = scr(Math.max(mq.x0, mq.x1), Math.max(mq.y0, mq.y1), m);
+        dctx.fillStyle = 'rgba(74,163,255,.12)'; dctx.fillRect(x0 * k, y0 * k, (x1 - x0) * k, (y1 - y0) * k);
+        dctx.strokeRect(x0 * k, y0 * k, (x1 - x0) * k, (y1 - y0) * k);
+      }
+      dctx.restore(); if (ms.length) return;
+    }
     const st = S.tool === 'select' ? selSt() : null; if (!st) return;
     const c = corners(st), k = dpr;
     dctx.save(); dctx.lineWidth = 1 * k; dctx.strokeStyle = '#4aa3ff'; dctx.setLineDash([5 * k, 3 * k]);
@@ -5251,9 +5289,24 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (S.tool !== 'select' || !has() || e.button !== 0 || spaceDown || kDown || pan) return;
     if (!e.target.closest('#stage, #draw') && e.target !== vp) return;
     const [px, py] = vpPt(e), [x, y] = toNorm(e);
+    const hit0 = picAt(x, y), ms = mItems();
+    if (e.shiftKey && hit0) { e.preventDefault(); e.stopPropagation(); toggleMulti(hit0); return; }   // Shift+クリックで追加・外す
+    if (ms.length && hit0 && ms.some(o => o.st === hit0)) {   // 選んだ物をまとめて動かす
+      e.preventDefault(); e.stopPropagation(); pauseExact();
+      try { vp.setPointerCapture(e.pointerId); } catch {}
+      xf = { id: e.pointerId, mode: 'mmove', x, y, list: ms.map(o => ({ ...o, a: { x: o.st.x, y: o.st.y } })) };
+      return;
+    }
     let st = selSt(), h = st ? handleAt(px, py, st) : -1, mode = h >= 0 ? 'scale' : null;
-    if (!mode) { const hit = picAt(x, y); if (hit) { st = hit; mode = 'move'; sel = { vid: S.cur, f: hit.t === 'x' ? txtOwner(hit) : frame(), st }; } }
-    if (!mode) { if (sel) { sel = null; paintDrawing(false); } return; }
+    if (!mode) { const hit = hit0; if (hit) { msel = []; st = hit; mode = 'move'; sel = { vid: S.cur, f: hit.t === 'x' ? txtOwner(hit) : frame(), st }; } }
+    if (!mode) {   // 何もない所からドラッグ：範囲選択
+      e.preventDefault(); e.stopPropagation();
+      try { vp.setPointerCapture(e.pointerId); } catch {}
+      xf = { id: e.pointerId, mode: 'marq', add: e.shiftKey ? (ms.length ? ms.slice() : selSt() ? [{ st: sel.st, f: ownerOf(sel.st) }] : []) : [] };
+      mq = { x0: x, y0: y, x1: x, y1: y };
+      if (!e.shiftKey) { sel = null; msel = []; }
+      paintDrawing(false); return;
+    }
     e.preventDefault(); e.stopPropagation();
     pauseExact();
     try { vp.setPointerCapture(e.pointerId); } catch {}
@@ -5276,6 +5329,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
       return;
     }
     if (e.pointerId !== xf.id) return;
+    if (xf.mode === 'marq') { const [x, y] = toNorm(e); mq.x1 = x; mq.y1 = y; paintDrawing(false); return; }
+    if (xf.mode === 'mmove') { const [x, y] = toNorm(e); xf.list.forEach(o => { o.st.x = o.a.x + x - xf.x; o.st.y = o.a.y + y - xf.y; }); requestRebuild(); return; }
     const [x, y] = toNorm(e), st = xf.st, a = xf.a;
     if (xf.mode === 'move') { st.x = a.x + x - xf.x; st.y = a.y + y - xf.y; }
     else {
@@ -5287,6 +5342,21 @@ If you want to offset all timestamps of a track such that the first one is zero,
   });
   const endXf = (e) => {
     if (!xf || e.pointerId !== xf.id) return;
+    if (xf.mode === 'marq') {
+      const x0 = Math.min(mq.x0, mq.x1), x1 = Math.max(mq.x0, mq.x1), y0 = Math.min(mq.y0, mq.y1), y1 = Math.max(mq.y0, mq.y1), add = xf.add;
+      mq = null; xf = null;
+      const tiny = (x1 - x0) * (M().sw) < 4 && (y1 - y0) * (M().sh) < 4;   // ほぼクリックなら選択を外すだけ
+      const got = tiny ? [] : allPickables().filter(o => { const s = o.st, h = s.b ? bH(s) : s.h; return s.x < x1 && s.x + s.w > x0 && s.y < y1 && s.y + h > y0; });
+      const list = add.slice(); got.forEach(o => { if (!list.some(q => q.st === o.st)) list.push(o); });
+      if (list.length) setMulti(list); else { sel = null; msel = []; paintDrawing(false); }
+      return;
+    }
+    if (xf.mode === 'mmove') {
+      const ops = xf.list.filter(o => o.st.x !== o.a.x || o.st.y !== o.a.y).map(o => ({ vid: S.cur, f: o.st.b ? frame() : o.f, op: 'xf', st: o.st, a: { ...o.a }, b: { x: o.st.x, y: o.st.y } }));
+      xf = null;
+      if (ops.length) { undoStack.push({ op: 'grp', ops }); redoStack.length = 0; fbChanged(); renderBoard(); save(); }
+      paintDrawing(true); return;
+    }
     const { st, a } = xf, b = { x: st.x, y: st.y, w: st.w, h: st.h }; if (st.t === 'x') b.s = st.s; xf = null;
     if (a.x !== b.x || a.y !== b.y || a.w !== b.w || a.h !== b.h) {
       undoStack.push({ vid: S.cur, f: frame(), op: 'xf', st, a, b }); redoStack.length = 0; fbChanged();
@@ -5295,6 +5365,16 @@ If you want to offset all timestamps of a track such that the first one is zero,
   };
   vp.addEventListener('pointerup', endXf); vp.addEventListener('pointercancel', endXf);
   function deletePic() {
+    const ms = mItems();
+    if (ms.length) {   // まとめて削除（Ctrl+Z で一度に戻る）
+      const ops = [];
+      ms.forEach(o => {
+        if (o.st.b) { const a = boardOf(), i = a.indexOf(o.st); a.splice(i, 1); ops.push({ vid: S.cur, f: frame(), op: 'bdel', st: o.st, i }); }
+        else { const n = note(S.cur, o.f), i = n.strokes.indexOf(o.st); n.strokes.splice(i, 1); ops.push({ vid: S.cur, f: o.f, op: 'del', st: o.st, i }); tidyNote(S.cur, o.f); }
+      });
+      msel = []; undoStack.push({ op: 'grp', ops }); redoStack.length = 0;
+      renderBoard(); renderVideos(); fbChanged(); paintDrawing(true); say(`${ops.length}個を削除しました（Ctrl+Zで戻せます）`); return;
+    }
     const st = selSt(); if (!st) return;
     if (st.b) {
       const a = boardOf(), i = a.indexOf(st); a.splice(i, 1); sel = null;
@@ -5313,6 +5393,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     fbChanged(); paintDrawing(true);
   }
   function applyOp(o, undo) {
+    if (o.op === 'grp') { (undo ? o.ops.slice().reverse() : o.ops).forEach(q => applyOp(q, undo)); return; }
     if (o.op === 'arc' || o.op === 'meas') { applyAnnoOp(o, undo); return; }
     if (o.op === 'badd' || o.op === 'bdel' || (o.op === 'xf' && o.st?.b)) { applyBoardOp(o, undo); return; }
     if (o.op === 'key') {
@@ -6306,6 +6387,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     else if (ctrl && (e.key === '-' || code === 'NumpadSubtract')) { e.preventDefault(); zoomStep(-1); }
     else if (ctrl && code === 'BracketLeft') { e.preventDefault(); togglePanel('left'); }
     else if (ctrl && code === 'BracketRight') { e.preventDefault(); togglePanel('right'); }
+    else if (ctrl && code === 'KeyA' && S.tool === 'select' && has()) { e.preventDefault(); const l = allPickables(); if (l.length) setMulti(l); else say('選べる画像・文字・資料がありません'); }
     else if (ctrl && code === 'KeyG') { e.preventDefault(); newGroup(!!V()); }
     else if (ctrl && k === 'arrowup') { e.preventDefault(); cycleVideo(-1); }
     else if (ctrl && k === 'arrowdown') { e.preventDefault(); cycleVideo(1); }
@@ -6325,7 +6407,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     else if (code === 'BracketLeft') sizeStep(-1);
     else if (code === 'BracketRight') sizeStep(1);
     else if (k === 'escape' && (picking || tracking)) { cancelPick(); }
-    else if (k === 'escape') { if (selSt()) { sel = null; paintDrawing(false); } video.pause(); stopStep(); $('#keys').classList.add('hidden'); $('#recentDlg').classList.add('hidden'); }
+    else if (k === 'escape') { if (selSt() || msel.length) { sel = null; msel = []; paintDrawing(false); } video.pause(); stopStep(); $('#keys').classList.add('hidden'); $('#recentDlg').classList.add('hidden'); }
     else if (k === '?') $('#keys').classList.toggle('hidden');
     else if (k === 'k') { kDown = true; vp.classList.add('kscrub'); }
     else if (k === 'b') setTool('pen');
@@ -6339,7 +6421,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     else if (k === 'm' && e.shiftKey) { e.preventDefault(); toggleMemoHide(); }
     else if (k === 'm') { e.preventDefault(); focusMemo(); }
     else if (k === 's') setKey();
-    else if (k === 'delete' || k === 'backspace') { e.preventDefault(); if (selSt()) deletePic(); else deleteKey(); }
+    else if (k === 'delete' || k === 'backspace') { e.preventDefault(); if (selSt() || mItems().length) deletePic(); else deleteKey(); }
     else if (k === 'g') toggleGhost();
     else if (e.shiftKey && code === 'KeyY') toggleFocus();
     else if (e.shiftKey && code === 'KeyH') toggleFlip();
