@@ -282,6 +282,12 @@
   .fbrow .fi { flex: none; width: 30px; }
   .fbrow .ft { flex: 1; min-width: 0; color: var(--text); white-space: pre-wrap; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .fbrow .x { visibility: hidden; }
+  .fbrow .chk { flex: none; width: 16px; height: 16px; margin-top: 1px; padding: 0; border: 1.5px solid #9a9a9a; border-radius: 50%; background: transparent; color: #fff; font-size: 11px; line-height: 13px; cursor: pointer; }
+  .fbrow .chk:hover { border-color: #fff; background: #555; }
+  .fbrow.done .chk { background: var(--hl); border-color: var(--hl); }
+  .fbrow.done .ft { color: var(--sub); text-decoration: line-through; }
+  .fbDoneH { padding: 6px 8px; color: var(--sub); cursor: pointer; border-bottom: 1px solid var(--line); user-select: none; }
+  .fbDoneH:hover { color: #fff; background: #4b4b4b; }
   .fbrow:hover .x { visibility: visible; }
   .dotM { color: var(--memo); } .dotP { color: var(--pen); }
   .fbEmpty { padding: 12px 8px; color: var(--sub); line-height: 1.7; }
@@ -749,7 +755,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
         <span class="seg" title="再生・比較"><button class="tg" id="tgStep" title="キーのみ再生：キーのポーズを次のキーまで止めて再生（ブロッキング確認）  Shift+Alt+B">キーのみ</button><button class="tg" id="tgGhost" title="ゴースト：前のキー（赤）と次のキー（緑）を半透明で重ねる  G">ゴースト</button><button class="tg" id="tgOv" title="ほかの動画を透かして重ねる（比較用）">重ねる</button></span>
         <span class="seg" title="見かた"><button class="tg" id="tgFlip" title="左右反転して表示（鏡で見る）  Shift+H">反転</button><button class="tg" id="tgFollow" title="追従：拡大中もキャラを画面の真ん中に追いかける  I
 初回はキャラをドラッグで囲む（Shift+I で選び直し）。Space＋ドラッグで画面内の位置をずらせます">追従</button></span><select id="followSm" class="hidden" title="追従のなめらかさ：強いほどカメラがゆったり動いて揺れにくい（速い動きには少し遅れます）"><option value="0.1">揺れ止め 弱</option><option value="0.3">揺れ止め 中</option><option value="0.6">揺れ止め 強</option></select>
-        <span class="seg" title="一時的に隠す（消えません）"><button class="tg" id="tgHide" title="ペンの線・文字・貼り付けた画像を一時的に隠す（消えません）  H">ペンを隠す</button><button class="tg" id="tgMemoHide" title="画面上のメモを一時的に隠す（消えません）  Shift+M">メモを隠す</button></span>
+        <span class="seg" title="一時的に隠す（消えません）"><button class="tg on" id="tgHide" title="青＝表示中。押すとペンの線・文字・貼り付けた画像を一時的に隠す（消えません）  H">ペン表示</button><button class="tg on" id="tgMemoHide" title="青＝表示中。押すと画面上のメモを一時的に隠す（消えません）  Shift+M">メモ表示</button></span>
       </div>
       <span class="sep"></span>
       <span class="rlab">速さ</span><select id="fps" title="この動画のフレームレート（読み込み時に自動判定。手動でも変更可）"></select>
@@ -3645,7 +3651,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
         if (!/^\d{1,7}$/.test(f)) continue;
         const n = o[f]; if (!n || typeof n !== 'object') continue;
         const strokes = (Array.isArray(n.strokes) ? n.strokes : []).map(sStroke).filter(Boolean), memo = sStr(n.memo, 20000);
-        if (memo || strokes.length) fo[f] = { memo, strokes };
+        if (memo || strokes.length) { fo[f] = { memo, strokes }; if (n.done === true) fo[f].done = true; }
       }
       if (Object.keys(fo).length) out[sStr(vid, 400)] = fo;
     }
@@ -4923,11 +4929,11 @@ If you want to offset all timestamps of a track such that the first one is zero,
   let sm = null;   // 手ブレ補正（遅れて追従する点）
   let penSeen = false, fbHidden = false, memoHidden = false;   // fbHidden＝ペン（線・貼った画像）を隠しているか
   function toggleHide(v = !fbHidden) {
-    fbHidden = v; document.body.classList.toggle('penHidden', v); $('#tgHide').classList.toggle('on', v);
+    fbHidden = v; document.body.classList.toggle('penHidden', v); $('#tgHide').classList.toggle('on', !v);
     say(v ? 'ペンを隠しました（H でもう一度表示。消えてはいません）' : 'ペンを表示しました');
   }
   function toggleMemoHide(v = !memoHidden) {
-    memoHidden = v; document.body.classList.toggle('memoHidden', v); $('#tgMemoHide').classList.toggle('on', v);
+    memoHidden = v; document.body.classList.toggle('memoHidden', v); $('#tgMemoHide').classList.toggle('on', !v);
     say(v ? 'メモを隠しました（Shift+M でもう一度表示。消えてはいません）' : 'メモを表示しました');
   }
   $('#tgHide').onclick = () => toggleHide();
@@ -5600,21 +5606,32 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function fbChanged() { renderFB(); renderVideos(); drawTS(); renderLayers(); renderRounds(); save(); }
   function renderFB() {
     const fbl = $('#fbList'), fs = S.cur ? fbFrames(S.cur) : [];
-    const all = Object.keys(S.notes).reduce((n, id) => n + fbFrames(id).length, 0);
+    const all = Object.keys(S.notes).reduce((n, id) => n + fbFrames(id).filter(f => !S.notes[id][f].done).length, 0);   // 未完了の数
     $('#fCount').textContent = all ? all : '';
     if (!fs.length) { fbl.innerHTML = '<div class="fbEmpty">この動画のFBはまだありません。<br>ペン（B）で描くか、メモ（M）を書くとここに並びます。<br>タイムスライダーにも 黄＝メモ／青＝ペン で表示されます。</div>'; return; }
     const cur = frame();
-    fbl.innerHTML = fs.map(f => {
+    const row = f => {
       const n = S.notes[S.cur][f];
-      return `<div class="fbrow${f === cur ? ' active' : ''}" data-f="${f}"><span class="ff">F${f}</span>
+      return `<div class="fbrow${f === cur ? ' active' : ''}${n.done ? ' done' : ''}" data-f="${f}"><button class="chk" title="${n.done ? '未完了に戻す' : '完了にする'}">${n.done ? '✓' : ''}</button><span class="ff">F${f}</span>
         <span class="fi">${n.memo ? '<span class="dotM">●</span>' : ''}${n.strokes.length ? '<span class="dotP">✎</span>' : ''}</span>
         <span class="ft">${n.memo ? esc(n.memo) : n.strokes.some(s => s.t === 'x') ? '<span style="color:#bbb">「' + esc(n.strokes.filter(s => s.t === 'x').map(s => s.txt.replace(/\n/g, ' ')).join('／')) + '」</span>' : '<span style="color:#888">（ペンのみ）</span>'}</span>
         <button class="mini x" title="このフレームのFBを削除">×</button></div>`;
-    }).join('');
+    };
+    const todo = fs.filter(f => !S.notes[S.cur][f].done), dn = fs.filter(f => S.notes[S.cur][f].done);
+    fbl.innerHTML = (todo.length ? todo.map(row).join('') : '<div class="fbEmpty">未完了のFBはありません 🎉</div>')
+      + (dn.length ? `<div class="fbDoneH${fbDoneOpen ? ' open' : ''}">${fbDoneOpen ? '▾' : '▸'} 完了済み ${dn.length}</div>` + (fbDoneOpen ? dn.map(row).join('') : '') : '');
   }
+  let fbDoneOpen = false;
   $('#fbList').addEventListener('click', async e => {
+    if (e.target.closest('.fbDoneH')) { fbDoneOpen = !fbDoneOpen; renderFB(); return; }
     const row = e.target.closest('.fbrow'); if (!row) return;
     const f = Number(row.dataset.f);
+    if (e.target.closest('.chk')) {
+      const n = note(S.cur, f); if (!n) return;
+      if (n.done) delete n.done; else n.done = true;
+      say(n.done ? `F${f} のFBを完了にしました（下の「完了済み」に移動）` : `F${f} のFBを未完了に戻しました`);
+      renderFB(); drawTS(); save(); return;
+    }
     if (e.target.closest('.x')) {
       if (!(await ask(`フレーム ${f} のメモとペンを削除しますか？`, 'FBを削除'))) return;
       const n = note(S.cur, f);
