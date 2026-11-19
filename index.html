@@ -3024,9 +3024,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
   };
   function tidyNote(vid, f) {
     const n = S.notes[vid]?.[f];
-    if (n && !n.memo && !n.strokes.length) { delete S.notes[vid][f]; if (!Object.keys(S.notes[vid]).length) delete S.notes[vid]; }
+    if (n && !n.memo && !n.strokes.length && !n.dmemo) { delete S.notes[vid][f]; if (!Object.keys(S.notes[vid]).length) delete S.notes[vid]; }
   }
-  const fbFrames = (vid) => Object.keys(S.notes[vid] || {}).map(Number).filter(f => { if (!f) return false; const n = S.notes[vid][f]; /* 0 は「全フレームの文字」置き場 */ return n.memo || n.strokes.length; }).sort((a, b) => a - b);
+  const fbFrames = (vid) => Object.keys(S.notes[vid] || {}).map(Number).filter(f => { if (!f) return false; const n = S.notes[vid][f]; /* 0 は「全フレームの文字」置き場 */ return n.memo || n.strokes.length || n.dmemo; }).sort((a, b) => a - b);
 
   // ================= 保存（このブラウザの IndexedDB のみ。外部送信なし） =================
   const DBNAME = 'pose-extractor', STORE = 'kv';
@@ -3659,7 +3659,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
         if (!/^\d{1,7}$/.test(f)) continue;
         const n = o[f]; if (!n || typeof n !== 'object') continue;
         const strokes = (Array.isArray(n.strokes) ? n.strokes : []).map(sStroke).filter(Boolean), memo = sStr(n.memo, 20000);
-        if (memo || strokes.length) { fo[f] = { memo, strokes }; if (n.done === true) fo[f].done = true; if (Array.isArray(n.hid)) { const h = n.hid.map(sId).filter(Boolean).slice(0, 100); if (h.length) fo[f].hid = h; } }
+        const dm = sStr(n.dmemo, 20000);
+        if (memo || strokes.length || dm) { fo[f] = { memo, strokes }; if (n.done === true) { fo[f].done = true; if (dm) fo[f].dmemo = dm; else if (memo && n.dmemo === undefined) { fo[f].dmemo = memo; fo[f].memo = ''; } }   /* 完了したFBの文字は dmemo に移して画面のメモから消す */ if (Array.isArray(n.hid)) { const h = n.hid.map(sId).filter(Boolean).slice(0, 100); if (h.length) fo[f].hid = h; } }
       }
       if (Object.keys(fo).length) out[sStr(vid, 400)] = fo;
     }
@@ -5564,7 +5565,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const L = activeLayer(), c = countLayer(L.id);
     if (c && !(await ask(`レイヤー「${L.name}」を削除しますか？\nこのレイヤーの線（${framesOfLayer(L.id)}フレーム・${c}本）もすべて消えます。元に戻せません。`, 'レイヤーを削除'))) return;
     Object.keys(S.notes).forEach(vid => Object.keys(S.notes[vid]).forEach(f => { const n = S.notes[vid][f]; n.strokes = n.strokes.filter(st => st.l !== L.id); tidyNote(vid, f); }));
-    allRounds().filter(ns => ns !== S.notes).forEach(ns => Object.values(ns).forEach(o => Object.keys(o).forEach(f => { const n = o[f]; n.strokes = n.strokes.filter(st => st.l !== L.id); if (!n.memo && !n.strokes.length) delete o[f]; })));
+    allRounds().filter(ns => ns !== S.notes).forEach(ns => Object.values(ns).forEach(o => Object.keys(o).forEach(f => { const n = o[f]; n.strokes = n.strokes.filter(st => st.l !== L.id); if (!n.memo && !n.strokes.length && !n.dmemo) delete o[f]; })));
     const i = S.layers.indexOf(L); S.layers.splice(i, 1);
     S.layer = S.layers[Math.max(0, i - 1)].id;
     undoStack.length = redoStack.length = 0;
@@ -5623,7 +5624,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
         const dst = ((to[vid] ||= {})[f] ||= { memo: '', strokes: [] });
         dst.strokes.push(...n.strokes); n.strokes = [];
         if (n.hid) { dst.hid = n.hid; delete n.hid; }
-        if (!n.memo) delete o[f];
+        if (!n.memo && !n.dmemo) delete o[f];
       }
       if (!Object.keys(o).length) delete from[vid];
     }
@@ -5717,20 +5718,21 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function fbChanged() { renderFB(); renderVideos(); drawTS(); renderLayers(); renderRounds(); save(); }
   function renderFB() {
     const fbl = $('#fbList'), fs = S.cur ? fbFrames(S.cur) : [];
-    const all = Object.keys(S.notes).reduce((n, id) => n + fbFrames(id).filter(f => !S.notes[id][f].done).length, 0);   // 未完了の数
+    const isTodo = n => !!n.memo || (n.strokes.length > 0 && !n.done);   // 完了後に新しく書いたメモは、未完了として別に並ぶ
+    const all = Object.keys(S.notes).reduce((c, id) => c + fbFrames(id).filter(f => isTodo(S.notes[id][f])).length, 0);   // 未完了の数
     $('#fCount').textContent = all ? all : '';
     if (!fs.length) { fbl.innerHTML = '<div class="fbEmpty">この動画のFBはまだありません。<br>ペン（B）で描くか、メモ（M）を書くとここに並びます。<br>タイムスライダーにも 黄＝メモ／青＝ペン で表示されます。</div>'; return; }
     const cur = frame();
-    const row = f => {
-      const n = S.notes[S.cur][f];
-      return `<div class="fbrow${f === cur ? ' active' : ''}${n.done ? ' done' : ''}" data-f="${f}"><button class="chk" title="${n.done ? '未完了に戻す' : '完了にする'}">${n.done ? '✓' : ''}</button><span class="ff">F${f}</span>
-        <span class="fi">${n.memo ? '<span class="dotM">●</span>' : ''}${n.strokes.length ? '<span class="dotP">✎</span>' : ''}</span>
-        <span class="ft">${n.memo ? esc(n.memo) : n.strokes.some(s => s.t === 'x') ? '<span style="color:#bbb">「' + esc(n.strokes.filter(s => s.t === 'x').map(s => s.txt.replace(/\n/g, ' ')).join('／')) + '」</span>' : '<span style="color:#888">（ペンのみ）</span>'}</span>
-        <button class="mini x" title="このフレームのFBを削除">×</button></div>`;
+    const row = (f, dn) => {
+      const n = S.notes[S.cur][f], txt = dn ? n.dmemo : n.memo, pen = n.strokes.length && (dn || !n.done);
+      return `<div class="fbrow${f === cur ? ' active' : ''}${dn ? ' done' : ''}" data-f="${f}" data-d="${dn ? 1 : 0}"><button class="chk" title="${dn ? '未完了に戻す（メモに文字が戻ります）' : '完了にする（画面のメモから文字が消えます）'}">${dn ? '✓' : ''}</button><span class="ff">F${f}</span>
+        <span class="fi">${txt ? '<span class="dotM">●</span>' : ''}${pen ? '<span class="dotP">✎</span>' : ''}</span>
+        <span class="ft">${txt ? esc(txt) : n.strokes.some(s => s.t === 'x') ? '<span style="color:#bbb">「' + esc(n.strokes.filter(s => s.t === 'x').map(s => s.txt.replace(/\n/g, ' ')).join('／')) + '」</span>' : '<span style="color:#888">（ペンのみ）</span>'}</span>
+        <button class="mini x" title="${dn ? 'この完了済みFBを削除' : 'このフレームのFBを削除'}">×</button></div>`;
     };
-    const todo = fs.filter(f => !S.notes[S.cur][f].done), dn = fs.filter(f => S.notes[S.cur][f].done);
-    fbl.innerHTML = (todo.length ? todo.map(row).join('') : '<div class="fbEmpty">未完了のFBはありません 🎉</div>')
-      + (dn.length ? `<div class="fbDoneH${fbDoneOpen ? ' open' : ''}">${fbDoneOpen ? '▾' : '▸'} 完了済み ${dn.length}</div>` + (fbDoneOpen ? dn.map(row).join('') : '') : '');
+    const todo = fs.filter(f => isTodo(S.notes[S.cur][f])), dn = fs.filter(f => S.notes[S.cur][f].done);
+    fbl.innerHTML = (todo.length ? todo.map(f => row(f, false)).join('') : '<div class="fbEmpty">未完了のFBはありません 🎉</div>')
+      + (dn.length ? `<div class="fbDoneH${fbDoneOpen ? ' open' : ''}">${fbDoneOpen ? '▾' : '▸'} 完了済み ${dn.length}</div>` + (fbDoneOpen ? dn.map(f => row(f, true)).join('') : '') : '');
   }
   let fbDoneOpen = false;
   $('#fbList').addEventListener('click', async e => {
@@ -5739,9 +5741,23 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const f = Number(row.dataset.f);
     if (e.target.closest('.chk')) {
       const n = note(S.cur, f); if (!n) return;
-      if (n.done) delete n.done; else n.done = true;
-      say(n.done ? `F${f} のFBを完了にしました（下の「完了済み」に移動）` : `F${f} のFBを未完了に戻しました`);
-      renderFB(); drawTS(); save(); return;
+      if (row.dataset.d === '1') {   // 未完了に戻す：文字をメモに戻す（そのあと書いた新しいメモとは線で分けて並べる）
+        const old = n.dmemo || '';
+        n.memo = old && n.memo ? `${old}\n――――――\n${n.memo}` : (old || n.memo);
+        delete n.dmemo; delete n.done;
+        say(`F${f} のFBを未完了に戻しました`);
+      } else {   // 完了：メモの文字を「完了済み」に移して、画面のメモからは消す
+        if (n.memo) n.dmemo = n.dmemo ? `${n.dmemo}\n${n.memo}` : n.memo;
+        n.memo = ''; n.done = true;
+        say(`F${f} のFBを完了にしました（画面のメモから消え、下の「完了済み」に移動）`);
+      }
+      if (f === frame()) { memo.value = n.memo; }
+      tidyNote(S.cur, f); fbChanged(); showMemo(); return;
+    }
+    if (e.target.closest('.x') && row.dataset.d === '1') {
+      if (!(await ask(`フレーム ${f} の完了済みFBを削除しますか？`, 'FBを削除'))) return;
+      const n = note(S.cur, f); if (n) { delete n.dmemo; delete n.done; tidyNote(S.cur, f); }
+      fbChanged(); return;
     }
     if (e.target.closest('.x')) {
       if (!(await ask(`フレーム ${f} のメモとペンを削除しますか？`, 'FBを削除'))) return;
