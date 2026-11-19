@@ -413,6 +413,22 @@
   .rrow button { flex: none; }
   #recentBox .rall { width: 100%; background: none; color: var(--sub); height: 22px; }
   #keys tr.h td { background: var(--bg2); color: var(--sub); }
+  /* レイヤー：Photoshop のように縮小画像つき。ペン・消しゴム・文字のときは右パネルの主役にする */
+  .layerBox .lhint { display: none; }
+  .layerBox .lfoot { display: flex; align-items: center; gap: 3px; padding-top: 2px; }
+  .layerBox .lfoot .mini { height: 22px; min-width: 24px; }
+  .layerBox .lredo { padding: 0 8px; }
+  .lrow .lth { width: 48px; height: 27px; flex: none; border: 1px solid #1d1d1d; border-radius: 2px; background: #3b3b3b; background-image: linear-gradient(45deg,#444 25%,transparent 25%,transparent 75%,#444 75%),linear-gradient(45deg,#444 25%,transparent 25%,transparent 75%,#444 75%); background-size: 8px 8px; background-position: 0 0, 4px 4px; display: none; }
+  body.penPanel #paneFb { display: flex; flex-direction: column; }
+  body.penPanel #paneFb .layerBox { order: -1; flex: 1; min-height: 0; border-bottom: 1px solid var(--line); }
+  body.penPanel #paneFb .layerBox .mt b { font-size: 13px; }
+  body.penPanel #layerList { flex: 1; max-height: none; min-height: 120px; }
+  body.penPanel .lrow { height: 40px; gap: 6px; padding: 0 6px; }
+  body.penPanel .lrow .lth { display: block; }
+  body.penPanel .lrow .eye { width: 24px; height: 24px; font-size: 14px; }
+  body.penPanel #fbList { display: none; }
+  body.penPanel .memoBox textarea { height: 44px; min-height: 44px; }
+  body.penPanel .fbRound { display: none; }
   /* 一時作業中：保存されないことがひと目で分かるように */
   body.tempMode #bTemp { background: #b8741a; color: #fff; }
   body.tempMode #viewport { box-shadow: inset 0 0 0 2px #b8741a; }
@@ -686,11 +702,19 @@
         <textarea id="memo" placeholder="このフレームへのメモ（FB内容など）"></textarea>
       </div>
       <div class="layerBox">
-        <div class="mt"><b>レイヤー</b>
-          <button class="mini" id="lAdd" title="新規レイヤー">＋</button><button class="mini" id="lUp" title="上へ">▲</button><button class="mini" id="lDown" title="下へ">▼</button><button class="mini" id="lDel" title="レイヤーを削除">🗑</button>
+        <div class="mt"><b>レイヤー</b><span class="lhint">ペンのときは大きく表示</span>
+          <button class="mini" id="lUp" title="上へ">▲</button><button class="mini" id="lDown" title="下へ">▼</button>
         </div>
-        <div id="layerList"></div>
         <label class="lop">不透明度 <input id="lOp" type="range" min="0" max="100" value="100"><span class="val" id="lOpV">100%</span></label>
+        <div id="layerList"></div>
+        <div class="lfoot">
+          <button class="mini lredo" id="lRedo" title="今のレイヤーを隠して、新しいレイヤーで描き直す（前の線は消えずに残るので、目のアイコンで見比べられます）">✎ 新しいレイヤーで描き直す</button>
+          <span style="flex:1"></span>
+          <button class="mini" id="lClr" title="このフレームの、選んでいるレイヤーの線だけ消す（Ctrl+Z で戻せます）">🧹</button>
+          <button class="mini" id="lDup" title="レイヤーを複製（全フレームの線ごと）">⧉</button>
+          <button class="mini" id="lAdd" title="新規レイヤー">＋</button>
+          <button class="mini" id="lDel" title="レイヤーを削除">🗑</button>
+        </div>
       </div>
       <div class="scroll" id="fbList"></div>
     </div>
@@ -5292,7 +5316,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
       fbChanged(); paintDrawing(true); return;
     }
     const n = note(o.vid, o.f, true);
-    if (o.op === 'xf') Object.assign(o.st, undo ? o.a : o.b);
+    if (o.op === 'arr') n.strokes = (undo ? o.a : o.b).slice();
+    else if (o.op === 'xf') Object.assign(o.st, undo ? o.a : o.b);
     else if (o.op === 'del') { if (undo) n.strokes.splice(Math.min(o.i, n.strokes.length), 0, o.st); else { const i = n.strokes.indexOf(o.st); if (i >= 0) n.strokes.splice(i, 1); } }
     else if (o.op === 'add') { if (undo) { const i = n.strokes.lastIndexOf(o.st); if (i >= 0) n.strokes.splice(i, 1); } else { n.strokes.push(o.st); if (o.st.t === 'i') keepPic(o.st.k); } }
     else if (o.op === 'clear') n.strokes = undo ? o.strokes.slice() : [];
@@ -5321,6 +5346,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const pen = t === 'pen' || t === 'eraser', meas = t === 'arc' || t === 'angle';
     document.body.classList.toggle('drawing', pen);
     document.body.classList.toggle('texting', t === 'text');
+    document.body.classList.toggle('penPanel', pen || t === 'text');
+    renderLayers();
     $('#optText').classList.toggle('hidden', t !== 'text');
     document.body.classList.toggle('measuring', meas);
     $('#optPose').classList.toggle('hidden', t !== 'select');
@@ -5367,13 +5394,52 @@ If you want to offset all timestamps of a track such that the first one is zero,
     $('#layerList').innerHTML = S.layers.slice().reverse().map(L => {   // 上にあるレイヤーを上に表示（Photoshopと同じ）
       const c = strokesOf(n, L.id).length;
       return `<div draggable="true" class="lrow${L === act ? ' on' : ''}${L.vis ? '' : ' off'}" data-id="${esc(L.id)}">
-        <button class="eye" title="表示／非表示">${L.vis ? '👁' : '—'}</button>
+        <button class="eye" title="表示／非表示（Alt+クリックでこのレイヤーだけ表示）">${L.vis ? '👁' : '—'}</button>
+        <canvas class="lth" data-l="${esc(L.id)}" width="96" height="54"></canvas>
         <span class="ln" title="ダブルクリックで名前を変更">${esc(L.name)}</span>
         <span class="lc" title="このフレームの線の数">${c ? c + '本' : ''}</span>${L.op < 100 ? `<span class="lc">${Number(L.op) || 0}%</span>` : ''}</div>`;
     }).join('');
     $('#penLayer').innerHTML = $('#txtLayer').innerHTML = S.layers.slice().reverse().map(L => `<option value="${esc(L.id)}"${L === act ? ' selected' : ''}>${esc(L.name)}${L.vis ? '' : '（非表示）'}</option>`).join('');
     $('#lOp').value = act.op; $('#lOpV').textContent = act.op + '%';
     $('#lDel').disabled = S.layers.length <= 1;
+    if (document.body.classList.contains('penPanel')) layerThumbs();
+  }
+  // 縮小画像：このフレームの、そのレイヤーの線だけを描く（再生中は重くならないよう止まってから）
+  let thumbRaf = 0;
+  function layerThumbs() {
+    if (thumbRaf || (has() && !video.paused)) return;
+    thumbRaf = requestAnimationFrame(() => {
+      thumbRaf = 0;
+      const n = has() ? note(S.cur, frame()) : null, g = has() ? note(S.cur, 0) : null;
+      $$('#layerList .lth').forEach(c => {
+        const x = c.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height);
+        const ss = [...strokesOf(g, c.dataset.l), ...strokesOf(n, c.dataset.l)]; if (!ss.length) return;
+        const m = { ox: 0, oy: 0, sw: c.width / dpr, sh: c.height / dpr };
+        ss.forEach(st => drawStroke(x, st.t === 'b' || st.t === 'e' ? { ...st, s: st.s * 5 } : st, m));   // 小さい画像でも線が見えるよう太めに
+      });
+    });
+  }
+  function clearLayerFrame() {   // このフレームの、選んでいるレイヤーの線だけ消す（元に戻せる）
+    if (!has()) return;
+    const L = activeLayer(), f = frame(), n = note(S.cur, f);
+    if (!n || !strokesOf(n, L.id).length) { say(`フレーム ${f} の「${L.name}」には線がありません`); return; }
+    const a = n.strokes.slice(), b = a.filter(s => s.l !== L.id);
+    n.strokes = b.slice(); undoStack.push({ vid: S.cur, f, op: 'arr', a, b }); redoStack.length = 0;
+    tidyNote(S.cur, f); sel = null; fbChanged(); paintDrawing(true);
+    say(`フレーム ${f} の「${L.name}」の線を消しました（Ctrl+Z で戻せます）`);
+  }
+  function redoOnNewLayer() {   // 今のレイヤーを隠して、すぐ上の新しいレイヤーで描き直す
+    const old = activeLayer();
+    addLayer(); const nw = activeLayer();
+    old.vis = false; nw.name = old.name.replace(/（描き直し\d*）$/, '') + '（描き直し）';
+    if (S.tool !== 'pen') setTool('pen');
+    layersChanged(); say(`「${old.name}」を隠して、新しいレイヤーで描き直せます（目のアイコンで見比べ）`);
+  }
+  function dupLayer() {
+    const L = activeLayer(), id = 'L' + Date.now().toString(36), i = S.layers.indexOf(L);
+    S.layers.splice(i + 1, 0, { id, name: L.name + ' のコピー', vis: true, op: L.op });
+    allRounds().forEach(ns => Object.values(ns).forEach(o => Object.values(o).forEach(n => { const add = (n.strokes || []).filter(s => s.l === L.id).map(s => ({ ...JSON.parse(JSON.stringify(s)), l: id })); n.strokes.push(...add); })));
+    S.layer = id; layersChanged(); fbChanged(); say(`「${L.name}」を複製しました`);
   }
   function layersChanged(repaint = true) { renderLayers(); if (repaint) paintDrawing(true); save(); }
   function selectLayer(id) { if (!layerById(id)) return; S.layer = id; layersChanged(); say(`描くレイヤー：${activeLayer().name}`); }
@@ -5411,11 +5477,12 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   $('#layerList').addEventListener('click', e => {
     const row = e.target.closest('.lrow'); if (!row || e.target.closest('input')) return;
-    if (e.target.closest('.eye')) { const L = layerById(row.dataset.id); L.vis = !L.vis; layersChanged(); return; }
+    if (e.target.closest('.eye')) { const L = layerById(row.dataset.id); if (e.altKey) { const solo = S.layers.every(x => x === L || !x.vis) && L.vis; S.layers.forEach(x => x.vis = solo || x === L); } else L.vis = !L.vis; layersChanged(); return; }
     if (row.dataset.id !== S.layer) selectLayer(row.dataset.id);
   });
   $('#layerList').addEventListener('dblclick', e => { const row = e.target.closest('.lrow'); if (row && !e.target.closest('.eye, input')) renameLayer(row); });
   $('#penLayer').onchange = () => { selectLayer($('#penLayer').value); $('#penLayer').blur(); };
+  $('#lClr').onclick = clearLayerFrame; $('#lRedo').onclick = redoOnNewLayer; $('#lDup').onclick = dupLayer;
   $('#lAdd').onclick = addLayer; $('#lUp').onclick = () => moveLayer(1); $('#lDown').onclick = () => moveLayer(-1); $('#lDel').onclick = deleteLayer;
   $('#lOp').oninput = () => { activeLayer().op = Number($('#lOp').value); $('#lOpV').textContent = activeLayer().op + '%'; paintDrawing(true); };
   $('#lOp').onchange = () => layersChanged(false);
