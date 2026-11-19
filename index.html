@@ -4170,7 +4170,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   function scrubSeek() {
     scrub.busy = true; scrub.at = scrub.want;
-    video.currentTime = (scrub.want - 0.5) / fps(); V().frame = scrub.want;
+    userSeek = performance.now(); video.currentTime = (scrub.want - 0.5) / fps(); V().frame = scrub.want;
   }
   function scrubEnd() {
     if (!scrub) return;
@@ -4192,7 +4192,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (free && (n < v.rStart || n > v.rEnd)) { v.rStart = 1; v.rEnd = total(); syncUI(); save(); say(`フレーム ${n} は再生範囲の外だったので、範囲を全体に戻しました`); }
     else n = Math.max(v.rStart, Math.min(v.rEnd, n));
     video.pause(); stopStep(); looping = false;
-    video.currentTime = (n - 0.5) / fps();   // フレームの中央を狙ってズレを防ぐ
+    userSeek = performance.now(); video.currentTime = (n - 0.5) / fps();   // フレームの中央を狙ってズレを防ぐ
     V().frame = n;
     update(n);
   }
@@ -4264,7 +4264,10 @@ If you want to offset all timestamps of a track such that the first one is zero,
   video.addEventListener('play', () => { prefillStop(); $('#playIco').innerHTML = ICO_PAUSE; ghostHide(); tick(); });
   video.addEventListener('pause', () => { if (!ovid.paused) ovid.pause(); if (stepPlay || looping) return; $('#playIco').innerHTML = ICO_PLAY; if (has()) { settleFrame(); V().frame = frame(); update(); save(); ghostRefresh(); prefillKick(); } });
   video.addEventListener('seeked', () => { if (scrub) { update(scrub.at); if (scrub.want !== scrub.at) { curF.value = scrub.want; drawTS(scrub.want); } } else update(); });
-  video.addEventListener('ended', () => { const v = V(); if (!v || looping) return; loopBack(0); });
+  // ループは再生中に最後まで来たときだけ。手で最後のフレームに移動したとき（動画の終わりに当たって ended が出る）は再生しない
+  var userSeek = 0;   // 手でフレームを動かした時刻。再生を始めたら 0 に戻す
+  video.addEventListener('play', () => { userSeek = 0; });
+  video.addEventListener('ended', () => { const v = V(); if (!v || looping || stepPlay || userSeek) return; loopBack(0); });
   // ---- 再生範囲でループ：範囲の最後のフレームが表示された瞬間に止め、1コマ分待ってから先頭へ ----
   // （画面の書き換えごとに確認するので、範囲の外のフレームが一瞬見えることがない）
   const HAS_RVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
