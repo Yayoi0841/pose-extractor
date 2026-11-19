@@ -412,6 +412,17 @@
   .rrow button { flex: none; }
   #recentBox .rall { width: 100%; background: none; color: var(--sub); height: 22px; }
   #keys tr.h td { background: var(--bg2); color: var(--sub); }
+  /* 下のバー：動画の開始・終了の表示をなくし、見出し付きで3つのまとまりに */
+  .rsrow { min-height: 34px; padding: 4px 8px; gap: 4px 8px; }
+  .rsrow .rlab { color: var(--sub); font-size: 11px; white-space: nowrap; flex: none; }
+  .rsrow .rgrp { gap: 6px; }
+  #rStart, #rEnd { width: 50px; text-align: center; height: 22px; }
+  #rs { height: 20px; border-radius: 4px; } #rsBar { border-radius: 3px; }
+  .rsrow #curF { width: 58px; height: 24px; text-align: center; font-weight: 600; color: #fff; font-size: 13px; }
+  .tsctl .xport { display: inline-flex; align-items: center; gap: 1px; background: #262626; border-radius: 5px; padding: 2px; }
+  .tsctl .xport .icon { width: 26px; height: 22px; background: transparent; border-radius: 3px; } .tsctl .xport .icon:hover { background: #454545; }
+  .tsctl .xport #bPlay { width: 32px; background: #3e3e3e; } .tsctl .xport #bPlay:hover { background: var(--hl); }
+  .rsrow #fps, .rsrow #rate { height: 24px; }
 
   /* ===== 見た目の整理（Figma / Photoshop のUI設計を参考：4pxグリッド・高さ統一・アイコン統一・グループ化） ===== */
   :root { --bg: #383838; --bg2: #303030; --bg3: #2b2b2b; --field: #222; --btn: #474747; --btnH: #575757; --line: #222; --hl: #3a86d1; --text: #d4d4d4; --sub: #9b9b9b; }
@@ -682,22 +693,23 @@
     </div>
     <div class="rsrow">
       <div class="rgrp">
-        <input id="minF" type="number" title="動画の開始" disabled>
-        <input id="rStart" type="number" title="再生開始">
+        <input id="minF" type="number" class="hidden" disabled>
+        <span class="rlab" title="再生する範囲（バーの端をドラッグでも変えられます）">再生範囲</span>
+        <input id="rStart" type="number" title="再生範囲の始まり">
         <div id="rs"><div id="rsBar"><div class="rsh" data-h="l"></div><span id="rsTxt"></span><div class="rsh" data-h="r"></div></div></div>
-        <input id="rEnd" type="number" title="再生終了">
-        <input id="maxF" type="number" title="動画の終了" disabled>
+        <input id="rEnd" type="number" title="再生範囲の終わり">
+        <input id="maxF" type="number" class="hidden" disabled>
       </div>
       <div class="cgrp">
       <div class="tsctl">
-        <input id="curF" type="number" title="現在のフレーム">
-        <button class="icon" id="bStart" title="再生範囲の先頭へ (Alt+Shift+V)"><svg viewBox="0 0 12 12"><rect x="1" y="1" width="2" height="10"/><path d="M11 1v10L3.5 6z"/></svg></button>
+        <span class="rlab">フレーム</span><input id="curF" type="number" title="現在のフレーム（数字を入れて Enter で移動）">
+        <span class="xport"><button class="icon" id="bStart" title="再生範囲の先頭へ (Alt+Shift+V)"><svg viewBox="0 0 12 12"><rect x="1" y="1" width="2" height="10"/><path d="M11 1v10L3.5 6z"/></svg></button>
         <button class="icon" id="bPrevF" title="1フレーム戻る (Alt+,)"><svg viewBox="0 0 12 12"><rect x="1" y="1" width="2" height="10"/><path d="M10 2v8L4.5 6z"/></svg></button>
         <button class="icon" id="bPrevK" title="前のキーへ (,)"><svg viewBox="0 0 12 12"><path d="M7 1v10L1 6z"/><rect x="8" y="1" width="3" height="10"/></svg></button>
         <button class="icon" id="bPlay" title="再生／停止 (Alt+V)"><svg viewBox="0 0 12 12" id="playIco"><path d="M2 1v10l9-5z"/></svg></button>
         <button class="icon" id="bNextK" title="次のキーへ (.)"><svg viewBox="0 0 12 12"><rect x="1" y="1" width="3" height="10"/><path d="M5 1v10l6-5z"/></svg></button>
         <button class="icon" id="bNextF" title="1フレーム進む (Alt+.)"><svg viewBox="0 0 12 12"><path d="M2 2v8l5.5-4z"/><rect x="9" y="1" width="2" height="10"/></svg></button>
-        <button class="icon" id="bEnd" title="再生範囲の末尾へ"><svg viewBox="0 0 12 12"><path d="M1 1v10l7.5-5z"/><rect x="9" y="1" width="2" height="10"/></svg></button>
+        <button class="icon" id="bEnd" title="再生範囲の末尾へ"><svg viewBox="0 0 12 12"><path d="M1 1v10l7.5-5z"/><rect x="9" y="1" width="2" height="10"/></svg></button></span>
         <span class="sep"></span>
         <span class="seg" title="再生・比較"><button class="tg" id="tgStep" title="キーのみ再生：キーのポーズを次のキーまで止めて再生（ブロッキング確認）  Shift+Alt+B">キーのみ</button><button class="tg" id="tgGhost" title="ゴースト：前のキー（赤）と次のキー（緑）を半透明で重ねる  G">ゴースト</button><button class="tg" id="tgOv" title="ほかの動画を透かして重ねる（比較用）">重ねる</button></span>
         <span class="seg" title="見かた"><button class="tg" id="tgFlip" title="左右反転して表示（鏡で見る）  Shift+H">反転</button><button class="tg" id="tgFollow" title="追従：拡大中もキャラを画面の真ん中に追いかける  T
@@ -705,7 +717,7 @@
         <span class="seg" title="一時的に隠す（消えません）"><button class="tg" id="tgHide" title="ペンの線・文字・貼り付けた画像を一時的に隠す（消えません）  H">ペンを隠す</button><button class="tg" id="tgMemoHide" title="画面上のメモを一時的に隠す（消えません）  Shift+M">メモを隠す</button></span>
       </div>
       <span class="sep"></span>
-      <select id="fps" title="この動画のフレームレート（読み込み時に自動判定。手動でも変更可）"></select>
+      <span class="rlab">速さ</span><select id="fps" title="この動画のフレームレート（読み込み時に自動判定。手動でも変更可）"></select>
       <select id="rate" title="再生速度（1/16x 以下は1コマずつ送る再生）"><option value="0.03125">1/32x</option><option value="0.0625">1/16x</option><option value="0.125">1/8x</option><option value="0.25">1/4x</option><option value="0.5">1/2x</option><option value="1" selected>1x</option></select>
       </div>
     </div>
