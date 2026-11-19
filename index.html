@@ -536,6 +536,8 @@
     </div>
     <div class="menu" id="menuView"><button class="mi">表示</button>
       <div class="dropdown">
+        <button data-act="subWin">🪟 もう一つウィンドウを開く（資料を並べて見る）</button>
+        <hr>
         <button data-act="cvLight" id="mCvLight">　キャンバス（動画の外側）を明るくする</button>
         <hr>
         <button data-act="gCenter" id="mGCenter">　補助線：中心線</button>
@@ -3112,7 +3114,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (!db) { $('#saveState').textContent = '⚠ 自動保存できません（ファイル→プロジェクトを保存 を使ってください）'; return; }
     try {
       await tx('readwrite', st => st.put(prefs(), 'prefs'));
-      if (tempMode) { $('#saveState').textContent = '🕶 一時作業中（何も保存しません）'; return; }
+      if (tempMode) { $('#saveState').textContent = SUB_TOK ? '🪟 サブウィンドウ（見るだけ・保存しません）' : '🕶 一時作業中（何も保存しません）'; return; }
       if (isEmpty() && !sessId) { $('#saveState').textContent = ''; return; }   // 空の作業は保存しない
       if (!sessId) { sessId = 's' + Date.now().toString(36); ssSet(sessId); }
       const snap = snapshot(), packed = await packSnap(snap);
@@ -3537,7 +3539,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function syncTemp() {
     document.body.classList.toggle('tempMode', tempMode);
     $('#bTemp').textContent = tempMode ? '🕶 一時作業中 ▾' : '🕶 一時作業';
-    if (tempMode) $('#saveState').textContent = '🕶 一時作業中（何も保存しません）';
+    if (tempMode) $('#saveState').textContent = SUB_TOK ? '🪟 サブウィンドウ（見るだけ・保存しません）' : '🕶 一時作業中（何も保存しません）';
   }
   async function startTemp() {
     if (tempMode) return;
@@ -3737,6 +3739,52 @@ If you want to offset all timestamps of a track such that the first one is zero,
     syncPenUI(); renderLayers(); renderVideos(); render(); renderFB(); if (loaded) renderRecent();
     switchTo(S.videos.find(v => v.id === d.cur) ? d.cur : (S.videos.find(v => !v.offline)?.id ?? S.videos[0]?.id ?? null), undefined, true);
   }
+  // ================= もう一つのウィンドウ（同じ作業を並べて見る。サブ側は保存しない） =================
+  // ウィンドウ同士は同じサイトの中だけで届く BroadcastChannel でやりとり（外部には出ない）
+  const SUB_TOK = (() => { try { const t = new URLSearchParams(location.search).get('sub'); return t && /^[a-z0-9]{6,20}$/.test(t) ? t : null; } catch { return null; } })();
+  let subCh = null;
+  const subChan = () => subCh || (subCh = ('BroadcastChannel' in window) ? new BroadcastChannel('pe-sub') : null);
+  const subPending = new Set();
+  function openSubWin() {
+    const ch = subChan(); if (!ch) { say('このブラウザではウィンドウを追加できません'); return; }
+    const tok = Math.random().toString(36).slice(2, 12).padEnd(8, '0');
+    subPending.add(tok);
+    const w = window.open(location.pathname + '?sub=' + tok, '_blank', 'noopener,popup,width=1280,height=800');
+    say('もう一つウィンドウを開きました（見るだけ用。そちらの変更は保存されません）。開かないときはブラウザのポップアップ許可を確認してください');
+    setTimeout(() => subPending.delete(tok), 60000);
+  }
+  if (!SUB_TOK && 'BroadcastChannel' in window) subChan().onmessage = async (e) => {
+    const m = e.data; if (!m || m.t !== 'ready' || !subPending.has(m.tok)) return;
+    subPending.delete(m.tok);
+    const state = JSON.parse(JSON.stringify({ ...snapshot(), pics: Object.assign({}, ...allRounds().map(picsFor), Object.fromEntries(Object.values(S.board).flat().filter(it => it.t === 'i' && pics.get(it.k)?.url).map(it => [it.k, pics.get(it.k).url]))) }));
+    const files = S.videos.filter(v => v.file).map(v => ({ id: v.id, file: v.file }));
+    subChan().postMessage({ t: 'data', tok: m.tok, state, files, cur: S.cur, frame: has() ? frame() : 1 });
+  };
+  function subWinStart() {
+    tempMode = true; syncTemp(); document.body.classList.add('subWin'); document.title = '🪟 ' + document.title;
+    $('#saveState').textContent = '🪟 サブウィンドウ（見るだけ・保存しません）';
+    $('#bTemp').classList.add('hidden');
+    const ch = subChan(); if (!ch) { say('このブラウザではサブウィンドウを使えません'); return; }
+    let got = false;
+    ch.onmessage = async (e) => {
+      const m = e.data; if (got || !m || m.t !== 'data' || m.tok !== SUB_TOK) return;
+      got = true;
+      try {
+        const d = sanitizeState(m.state);
+        if (m.state?.pics && typeof m.state.pics === 'object') for (const [k, url] of Object.entries(m.state.pics)) if (typeof url === 'string' && /^(data:image\/|blob:)/.test(url)) setPicUrl(k, url);
+        applyState(d, false);
+        const fm = new Map((Array.isArray(m.files) ? m.files : []).filter(x => x && x.file instanceof Blob).map(x => [x.id, x.file]));
+        for (const v of S.videos) { const f = fm.get(v.id); if (f) { v.file = f; v.url = URL.createObjectURL(f); v.offline = false; v.ready = false; if (!v.thumb || !v.dur) makeThumb(v); } }
+        renderVideos();
+        const c = S.videos.find(v => v.id === m.cur && v.url) || S.videos.find(v => v.url);
+        if (c) switchTo(c.id, Number(m.frame) || undefined, true);
+        $('#saveState').textContent = '🪟 サブウィンドウ（見るだけ・保存しません）';
+        say('サブウィンドウです。元のウィンドウと同じ資料を見られます（ここでの変更は保存されません）');
+      } catch (err) { say('中身を受け取れませんでした：' + err.message); }
+    };
+    ch.postMessage({ t: 'ready', tok: SUB_TOK });
+    setTimeout(() => { if (!got) say('元のウィンドウから中身を受け取れませんでした。元のウィンドウから開き直してください'); }, 5000);
+  }
   async function loadState() {
     try {
       db = await idb();
@@ -3751,6 +3799,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       }
       if (pf) { Object.assign(S.pen, pf.pen || {}); Object.assign(S.eraser, pf.eraser || {}); S.stepped = !!pf.stepped; S.ghost = !!pf.ghost; if ('storeVideos' in pf) S.storeVideos = !!pf.storeVideos; if (Number.isFinite(pf.keepDays)) S.keepDays = pf.keepDays; S.seenGuide = !!pf.seenGuide; if ('showPoses' in pf) S.showPoses = !!pf.showPoses; const tp = pf.text; if (tp && typeof tp === 'object') { if (COLOR_RE.test(tp.color)) S.text.color = tp.color; S.text.size = sNum(tp.size, 48, 10, 240); S.text.bg = [0, 1, 2].includes(tp.bg) ? tp.bg : 0; S.text.b = tp.b !== false; S.text.all = tp.all === true; } S.cvLight = !!pf.cvLight; } applyPoseVis(); applyCanvas();
       syncPenUI(); syncToggles(); syncStoreMenu();
+      if (SUB_TOK) { loaded = true; subWinStart(); renderRecent(); return; }   // サブウィンドウ：元のウィンドウから中身をもらう（保存しない）
       const sid = ssGet(), d = sid && recentIdx.some(r => r.id === sid) ? await unpackSnap(await tx('readonly', st => st.get('sess:' + sid))) : null;
       loaded = true;
       if (d) { sessId = sid; applyState(d, false); const n = await attachStored(); say(n === S.videos.length ? 'このタブの作業を復元しました' : 'このタブの作業を復元しました。未接続の動画はもう一度追加してください'); }
@@ -5369,8 +5418,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
   };
   // 右クリック：選んだ物の書き出し・削除など（選んでいない物の上なら、その物を選んでから）
   vp.addEventListener('contextmenu', e => {
-    if (S.tool !== 'select' || !has() || e.target.closest('#anno')) return;
+    if (e.target.closest('#anno')) return;
     e.preventDefault();
+    if (S.tool !== 'select' || !has()) { ctxMenu(e.clientX, e.clientY, [['🪟 もう一つウィンドウを開く（資料を並べて見る）', () => openSubWin()]]); return; }
     const [x, y] = toNorm(e), hit = picAt(x, y), ms = mItems();
     if (hit && !ms.some(o => o.st === hit) && selSt() !== hit) setMulti([{ st: hit, f: ownerOf(hit) }]);
     const n = mItems().length || (selSt() ? 1 : 0), items = [];
@@ -5381,6 +5431,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     } else if (boardOf().some(it => !it.hide)) items.push(['置いた資料をすべて1枚の画像で保存', () => ACT.exportSel()], ['-']);
     items.push(['すべて選択（Ctrl+A）', () => { const l = allPickables(); if (l.length) setMulti(l); else say('選べる画像・文字・資料がありません'); }]);
     if (n) items.push(['選択をやめる（Esc）', () => { sel = null; msel = []; paintDrawing(false); }]);
+    items.push(['-'], ['🪟 もう一つウィンドウを開く（資料を並べて見る）', () => openSubWin()]);
     ctxMenu(e.clientX, e.clientY, items);
   });
   vp.addEventListener('pointerup', endXf); vp.addEventListener('pointercancel', endXf);
@@ -5940,6 +5991,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     storage: () => showStorage().catch(e => say('確認できませんでした：' + (e?.message || e))),
     library: () => { $('#libPop').dataset.anchor = 'menu'; openLib($('#menuFile')); },
     exportFrame: () => exportFrame().catch(err => say('画像を保存できませんでした：' + err.message)),
+    subWin: () => openSubWin(),
     exportFb: () => exportFb().catch(err => say('FBを書き出せませんでした：' + err.message)),
     exportSel: () => exportSel().catch(err => say('画像を保存できませんでした：' + err.message)),
     storeVideos: () => toggleStoreVideos(),
