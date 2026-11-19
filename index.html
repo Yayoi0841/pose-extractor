@@ -6258,10 +6258,12 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
 
   // ================= キーボード =================
+  document.addEventListener('change', e => { if (e.target.matches?.('select') && !e.target.closest('#recentDlg, #modal')) setTimeout(() => e.target.blur(), 0); });   // 選んだら選択欄から抜けてショートカットが効くように
   window.addEventListener('keydown', (e) => {
     if (!$('#guide').classList.contains('hidden')) { if (e.key === 'Escape' || e.key === 'F1') { e.preventDefault(); closeGuide(); } return; }
     if (e.key === 'F1') { e.preventDefault(); openGuide(); return; }
     if (!$('#modal').classList.contains('hidden')) { if (e.key === 'Escape') $('#mNo').click(); if (e.key === 'Enter') $('#mYes').click(); return; }
+    if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyV' && !e.target.closest?.('#recentDlg')) { e.preventDefault(); if (e.target.matches?.('select')) e.target.blur(); togglePlay(); return; }   // Alt+V：メモ入力中や選択欄にいても再生／停止
     if (e.target === memo) { if (e.key === 'Escape') { memo.blur(); fbChanged(); } return; }
     if (e.target.matches('input:not([type=checkbox]):not([type=range]):not([type=radio]), select, textarea')) { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); return; }
     const k = e.key.toLowerCase(), code = e.code, ctrl = e.ctrlKey || e.metaKey;
