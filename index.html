@@ -337,6 +337,7 @@
   #gMain h3 { font-size: 14px; margin: 16px 0 4px; color: #9fd0ff; }
   #gMain ul, #gMain ol { padding-left: 22px; margin: 6px 0; } #gMain li { margin: 3px 0; }
   #gMain .steps li { margin: 7px 0; }
+  #gMain .ng { background: #4a2a2a; border-left: 3px solid #e05a5a; padding: 8px 10px; margin: 10px 0; color: #fff; line-height: 1.7; }
   #gMain .tip { background: #2f3a44; border-left: 3px solid #4aa3ff; padding: 6px 10px; margin: 10px 0; }
   #gMain kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid #666; border-bottom-width: 2px; border-radius: 3px; background: #2a2a2a; font: 11px/17px "Segoe UI", sans-serif; text-align: center; }
   #gMain code { font: 11px/1.6 Consolas, monospace; background: #2a2a2a; border: 1px solid #444; padding: 1px 5px; border-radius: 3px; word-break: break-all; user-select: all; }
@@ -491,6 +492,7 @@
   #memoOv { border-radius: 4px; }
   #drop { color: #ccc; border: 1.5px dashed #5a5a5a; border-radius: 12px; }
   #drop #dropText span { color: #999 !important; }
+  #drop #dropText .ngTxt { color: #f08a8a; font-weight: 600; } body.cvLight #drop #dropText .ngTxt { color: #c0392b; }
   #drop button { color: #eee; background: #4a4a4a; height: 26px; padding: 0 12px; } #drop button:hover { background: #5a5a5a; } #drop #pick { background: var(--hl); color: #fff; } #drop #pickTemp { background: #6b4a1f; color: #ffd9a0; } #drop #pickTemp:hover { background: #8a5f27; }
   body.cvLight #drop { color: #555; border-color: #a8a8a8; } body.cvLight #drop #dropText span { color: #777 !important; }
   /* 文字ツール */
@@ -678,7 +680,7 @@
     <div id="vTabs" title="動画を切り替え（Ctrl+↑ / Ctrl+↓ でも）"></div>
     <button id="focusExit" title="元の画面に戻す (Shift+Y)">⤡ 元に戻す</button>
     <div id="drop">
-      <div id="dropText">動画・画像をここにドラッグ＆ドロップ（複数まとめてOK）<br><span style="color:#aaa">MP4 / WebM / PNG / JPG</span></div>
+      <div id="dropText">動画・画像をここにドラッグ＆ドロップ（複数まとめてOK）<br><span style="color:#aaa">MP4 / WebM / PNG / JPG</span><br><b class="ngTxt">⚠ 入れていいのは参考資料だけ。機密情報は載せないでください</b></div>
       <div style="display:flex;gap:6px"><button id="pick">ファイルを選ぶ</button><button id="libOpen" title="前に使った動画（このブラウザに保存済み）から選ぶ">保存済みの動画から</button><button id="pickTemp" title="保存しない一時作業として動画を開く（ちょっと見るだけのときに。閉じると全部消えます）">🕶 一時作業で開く</button></div>
       <div id="recentBox" class="hidden"></div>
     </div>
@@ -967,6 +969,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 
 <section data-t="安全 セキュリティ ウイルス 外部送信">
 <h2>安全</h2>
+<p class="ng"><b>機密情報はこのブラウザに載せないでください。</b><br>入れていいのは<b>参考資料（リファレンス動画・画像）だけ</b>です。社内の制作中の映像・未公開の資料・お客様の素材などは読み込まないでください。</p>
 <ul>
 <li>外部とは通信しません</li>
 <li>本物の動画・画像だけ読み込みます</li>
@@ -3877,7 +3880,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       $('#vpHud').textContent = ''; $('#vpLabel').textContent = v ? `${S.videos.indexOf(v) + 1}: ${v.name}（未接続）` : '';
       $('#dropText').innerHTML = v
         ? `前回の動画「<b>${esc(v.name)}</b>」をもう一度追加してください<br><span style="color:#aaa">同じファイルを入れると、メモ・ペン・ポーズが自動でひも付きます</span>`
-        : '動画・画像をここにドラッグ＆ドロップ（複数まとめてOK）<br><span style="color:#aaa">MP4 / WebM / PNG / JPG</span>';
+        : '動画・画像をここにドラッグ＆ドロップ（複数まとめてOK）<br><span style="color:#aaa">MP4 / WebM / PNG / JPG</span><br><b class="ngTxt">⚠ 入れていいのは参考資料だけ。機密情報は載せないでください</b>';
       if (v && !quiet) say(`「${v.name}」は未接続です。同じファイルを追加してください`);
       syncUI(); paintDrawing(true); return;
     }
