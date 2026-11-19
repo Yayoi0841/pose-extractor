@@ -7,6 +7,7 @@
 <script>if (window.top !== window.self) { document.documentElement.style.display = "none"; try { window.top.location = window.self.location; } catch (e) {} }</script>
 
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src blob:; connect-src 'none'; font-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'">
+<script>/* 他のサイトの中に埋め込まれて表示されたら止める（クリックの乗っ取り対策）。開いた元のページとの関係も切る */ if (window.top !== window.self) { window.stop(); document.documentElement.innerHTML = ""; throw new Error("framed"); } try { window.opener = null; } catch (e) {}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ポーズ抜き出し</title>
 <style>
