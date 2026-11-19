@@ -344,7 +344,11 @@
   #keys table { border-collapse: collapse; width: 100%; }
   #keys td { padding: 3px 10px; border-top: 1px solid #3a3a3a; }
   #keys td:first-child { white-space: nowrap; }
-  #recentDlg { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 19; width: 460px; max-height: 80vh; display: flex; flex-direction: column; }
+  #recentDlg .rtools { display: flex; gap: 6px; padding: 8px 10px 0; } #recentDlg .rtools input { flex: 1; height: 24px; } #recentDlg .rtools select { width: 150px; height: 24px; }
+  #recentList .rfh { padding: 6px 10px 3px; color: #9fd0ff; font-size: 11px; font-weight: 600; border-bottom: 1px solid #444; background: var(--bg3); position: sticky; top: 0; }
+  .rrow .rpin { color: #666; flex: none; } .rrow .rpin.pinned { color: #ffcc00; }
+  .rrow .rfold { font-size: 10px; color: #9fd0ff; }
+  #recentDlg { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 19; width: 560px; max-height: 80vh; display: flex; flex-direction: column; }
   #libPop { position: fixed; z-index: 21; width: 330px; max-height: 70vh; display: flex; flex-direction: column; }
   #libPop #libPick { margin: 6px 8px 2px; height: 26px; }
   #libPop .rnote, #recentDlg .rnote { padding: 6px 10px; color: var(--sub); font-size: 11px; }
@@ -964,7 +968,8 @@
 
 <div id="recentDlg" class="dlg hidden">
   <div class="ptitle"><b>最近の作業</b><span style="flex:1"></span><button class="mini" id="recentClose">×</button></div>
-  <div class="rnote">このPCのブラウザ内に、最近の20件まで自動で残ります。新しいタブは空の状態で始まります。</div>
+  <div class="rtools"><input id="rSearch" type="search" placeholder="名前・動画名でさがす" spellcheck="false"><select id="rFolder" title="フォルダで絞り込む"></select></div>
+  <div class="rnote">★ を付けた作業とフォルダに入れた作業は自動で消えません。それ以外は新しい順に20件まで残ります（このPCのブラウザ内だけ）。</div>
   <div id="recentList"></div>
 </div>
 
@@ -3007,8 +3012,11 @@ If you want to offset all timestamps of a track such that the first one is zero,
       if (isEmpty() && !sessId) { $('#saveState').textContent = ''; return; }   // 空の作業は保存しない
       if (!sessId) { sessId = 's' + Date.now().toString(36); ssSet(sessId); }
       const snap = snapshot(), packed = await packSnap(snap);
-      recentIdx = [summary(snap, sessId), ...recentIdx.filter(r => r.id !== sessId)];
-      const drop = recentIdx.slice(MAX_SESS); recentIdx = recentIdx.slice(0, MAX_SESS);
+      const prev = recentIdx.find(r => r.id === sessId), sm = summary(snap, sessId);
+      if (prev?.pin) sm.pin = true; if (prev?.folder) sm.folder = prev.folder;
+      recentIdx = [sm, ...recentIdx.filter(r => r.id !== sessId)];
+      const keep = (r) => r.pin || r.folder || r.id === sessId;   // ★・フォルダ入りは自動で消さない
+      let loose = 0; const drop = recentIdx.filter(r => !keep(r) && ++loose > MAX_SESS); recentIdx = recentIdx.filter(r => !drop.includes(r));
       await tx('readwrite', st => { st.put(packed, 'sess:' + sessId); st.put(recentIdx, 'index'); drop.forEach(r => st.delete('sess:' + r.id)); });
       if (drop.length) gcFiles();
       const d = new Date(); $('#saveState').textContent = `自動保存済み ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
@@ -3025,15 +3033,45 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const box = $('#recentBox');
     const show = loaded && isEmpty() && recentIdx.length;
     box.classList.toggle('hidden', !show);
-    if (show) box.innerHTML = '<div class="rt">前回までの作業を開く</div>' + recentIdx.slice(0, 5).map(r => rowHTML(r)).join('') + (recentIdx.length > 5 ? `<button class="rall" data-all>すべて表示（${recentIdx.length}件）</button>` : '');
-    $('#recentList').innerHTML = recentIdx.length ? recentIdx.map(r => rowHTML(r)).join('') : '<div class="fbEmpty">保存された作業はありません</div>';
+    if (show) box.innerHTML = '<div class="rt">前回までの作業を開く</div>' + [...recentIdx].sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0)).slice(0, 5).map(r => rowHTML(r)).join('') + (recentIdx.length > 5 ? `<button class="rall" data-all>すべて表示（${recentIdx.length}件）</button>` : '');
+    renderRecentList();
   }
+  // ---- 整理：★（ピン留め）・フォルダ・検索 ----
+  const folders = () => [...new Set(recentIdx.map(r => r.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ja'));
+  function renderRecentList() {
+    const fs = folders(), sel = $('#rFolder'), fv = sel.value || '';
+    sel.innerHTML = `<option value="">すべて（${recentIdx.length}）</option><option value="*pin">★ のみ</option>` + fs.map(f => `<option value="f:${esc(f)}">📁 ${esc(f)}（${recentIdx.filter(r => r.folder === f).length}）</option>`).join('') + '<option value="*none">フォルダなし</option>';
+    sel.value = [...sel.options].some(o => o.value === fv) ? fv : '';
+    const q = $('#rSearch').value.trim().toLowerCase(), v = sel.value;
+    const list = recentIdx.filter(r => (!q || [r.name, r.folder, ...r.names].join(' ').toLowerCase().includes(q))
+      && (v === '' || (v === '*pin' ? r.pin : v === '*none' ? !r.folder : r.folder === v.slice(2))));
+    if (!list.length) { $('#recentList').innerHTML = `<div class="fbEmpty">${recentIdx.length ? '見つかりませんでした' : '保存された作業はありません'}</div>`; return; }
+    // 並び：★ → フォルダごと（名前順） → フォルダなし。各グループの中は新しい順
+    const groups = [['★ ピン留め', list.filter(r => r.pin)]];
+    fs.forEach(f => groups.push(['📁 ' + f, list.filter(r => !r.pin && r.folder === f)]));
+    groups.push([fs.length || list.some(r => r.pin) ? 'フォルダなし' : '', list.filter(r => !r.pin && !r.folder)]);
+    $('#recentList').innerHTML = groups.filter(g => g[1].length).map(([h, rs]) => (h ? `<div class="rfh">${esc(h)}（${rs.length}）</div>` : '') + rs.map(r => rowHTML(r)).join('')).join('');
+  }
+  async function saveIdx() { try { await tx('readwrite', st => st.put(recentIdx, 'index')); } catch {} }
+  async function togglePin(id) { const r = recentIdx.find(x => x.id === id); if (!r) return; r.pin = !r.pin || undefined; await saveIdx(); renderRecent(); say(r.pin ? '★ を付けました（自動で消えなくなります）' : '★ を外しました'); }
+  function setFolder(row) {
+    const id = row.dataset.id, r = recentIdx.find(x => x.id === id); if (!r) return;
+    const host = row.querySelector('.rn');
+    inlineEdit(host, r.folder || '', 'フォルダ名（空にすると外す）', async (v) => {
+      if (v != null) { v = v.slice(0, 30); r.folder = v || undefined; await saveIdx(); say(v ? `「${v}」フォルダに入れました` : 'フォルダから外しました'); }
+      renderRecent();
+    });
+    const inp = host.querySelector('input'), dl = document.createElement('datalist');   // 既存のフォルダ名を候補に出す
+    dl.id = 'rFolderDl'; dl.innerHTML = folders().map(f => `<option value="${esc(f)}">`).join(''); host.append(dl); inp.setAttribute('list', 'rFolderDl');
+  }
+  $('#rSearch').oninput = renderRecentList; $('#rSearch').addEventListener('keydown', e => e.stopPropagation());
+  $('#rFolder').onchange = renderRecentList;
   function rowHTML(r, del) {
     const name = r.names.length ? esc(r.names[0]) + (r.names.length > 1 ? ` ほか${r.names.length - 1}本` : '') : '（動画なし）';
     const info = [r.poses && `ポーズ${r.poses}`, r.keys && `キー${r.keys}`, r.fb && `FB${r.fb}`].filter(Boolean).join('・') || '—';
     const title = r.name ? `<b>${esc(r.name)}</b><br><span class="ri">${name}・${info}</span>` : `${name}<br><span class="ri">${info}</span>`;
-    return `<div class="rrow${r.id === sessId ? ' cur' : ''}" data-id="${esc(r.id)}"><span class="rd">${esc(stamp(r.savedAt))}</span><span class="rn" title="${esc(r.names.join('\n'))}&#10;（ダブルクリックで名前を変更）">${title}</span>
-      ${r.id === sessId ? '<span class="ri">開いている作業</span>' : '<button data-open>開く</button>'}<button class="mini" data-ren title="名前を変更">✎</button><button class="mini" data-del title="この作業を削除">🗑</button></div>`;
+    return `<div class="rrow${r.id === sessId ? ' cur' : ''}" data-id="${esc(r.id)}"><button class="mini rpin${r.pin ? ' pinned' : ''}" data-pin title="${r.pin ? '★ を外す' : '★ を付ける（上に固定・自動で消えない）'}">★</button><span class="rd">${esc(stamp(r.savedAt))}${r.folder ? `<br><span class="rfold">📁 ${esc(r.folder)}</span>` : ''}</span><span class="rn" title="${esc(r.names.join('\n'))}&#10;（ダブルクリックで名前を変更）">${title}</span>
+      ${r.id === sessId ? '<span class="ri">開いている作業</span>' : '<button data-open>開く</button>'}<button class="mini" data-fold title="フォルダに入れる／移す">📁</button><button class="mini" data-ren title="名前を変更">✎</button><button class="mini" data-del title="この作業を削除">🗑</button></div>`;
   }
   async function openSession(id) {
     if (id === sessId) return;
@@ -3143,6 +3181,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function resetWork() {
     S.videos.forEach(v => v.url && URL.revokeObjectURL(v.url));
     applyState({ videos: [], motions: [], notes: {} }, false);
+    $('#frameBox').style.display = 'none';
   }
   async function newWork() {
     if (saveTimer) await writeNow();
@@ -3156,6 +3195,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (e.target.closest('input')) return;
     if (e.target.closest('[data-del]')) deleteSession(row.dataset.id);
     else if (e.target.closest('[data-ren]')) renameRow(row);
+    else if (e.target.closest('[data-pin]')) togglePin(row.dataset.id);
+    else if (e.target.closest('[data-fold]')) setFolder(row);
     else if (e.target.closest('[data-open]')) openSession(row.dataset.id);
   }
   $('#recentBox').addEventListener('click', clickRecent);
@@ -3321,7 +3362,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     try {
       db = await idb();
       const [old, idx, pf] = await Promise.all([tx('readonly', st => st.get('state')), tx('readonly', st => st.get('index')), tx('readonly', st => st.get('prefs'))]);
-      recentIdx = Array.isArray(idx) ? idx : [];
+      recentIdx = Array.isArray(idx) ? idx.filter(r => r && typeof r.id === 'string').map(r => ({ ...r, pin: r.pin === true || undefined, folder: typeof r.folder === 'string' && r.folder.trim() ? r.folder.trim().slice(0, 30) : undefined, names: Array.isArray(r.names) ? r.names.map(String) : [] })) : [];
       if (old) {   // 以前の形式（1つだけ保存）のデータを「最近の作業」に移す
         const id = 's' + Date.now().toString(36) + 'o';
         recentIdx.unshift(summary(old, id));
