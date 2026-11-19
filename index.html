@@ -5367,6 +5367,22 @@ If you want to offset all timestamps of a track such that the first one is zero,
     }
     paintDrawing(true);
   };
+  // 右クリック：選んだ物の書き出し・削除など（選んでいない物の上なら、その物を選んでから）
+  vp.addEventListener('contextmenu', e => {
+    if (S.tool !== 'select' || !has() || e.target.closest('#anno')) return;
+    e.preventDefault();
+    const [x, y] = toNorm(e), hit = picAt(x, y), ms = mItems();
+    if (hit && !ms.some(o => o.st === hit) && selSt() !== hit) setMulti([{ st: hit, f: ownerOf(hit) }]);
+    const n = mItems().length || (selSt() ? 1 : 0), items = [];
+    if (n) {
+      items.push([`選んだ${n > 1 ? n + '個' : '物'}を1枚の画像で保存（Ctrl+Shift+E）`, () => ACT.exportSel()]);
+      items.push([`選んだ${n > 1 ? n + '個' : '物'}を削除（Delete）`, () => deletePic()]);
+      items.push(['-']);
+    } else if (boardOf().some(it => !it.hide)) items.push(['置いた資料をすべて1枚の画像で保存', () => ACT.exportSel()], ['-']);
+    items.push(['すべて選択（Ctrl+A）', () => { const l = allPickables(); if (l.length) setMulti(l); else say('選べる画像・文字・資料がありません'); }]);
+    if (n) items.push(['選択をやめる（Esc）', () => { sel = null; msel = []; paintDrawing(false); }]);
+    ctxMenu(e.clientX, e.clientY, items);
+  });
   vp.addEventListener('pointerup', endXf); vp.addEventListener('pointercancel', endXf);
   function deletePic() {
     const ms = mItems();
