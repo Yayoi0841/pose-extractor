@@ -523,6 +523,7 @@
         <hr>
         <button data-act="exportPptx">パワポを書き出す (.pptx)</button>
         <button data-act="exportFrame">今のフレームを画像で保存 (.png)<span>Ctrl+Shift+S</span></button>
+        <button data-act="exportSel">選んだ資料を1枚の画像で保存 (.png)<span>Ctrl+Shift+E</span></button>
         <button data-act="exportMp4">MP4 で書き出す（ペン・メモ・画像ごと）…</button>
         <button data-act="exportMaya">Maya 用に書き出す（フレーム一覧・ポーズ画像）…</button>
         <hr>
@@ -884,6 +885,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <li>動画の「▼ 資料N」でレイヤーをしまう／出す（しまっても画面からは消えません）</li>
 </ul>
 <p><b>まとめて動かす</b>（選択ツール <kbd>V</kbd>）：何もない所からドラッグで範囲選択／<kbd>Shift</kbd>+クリックで追加・外す／<kbd>Ctrl</kbd>+<kbd>A</kbd> で全部選択。選んだ物のどれかをドラッグすると一緒に動きます。<kbd>Delete</kbd> でまとめて削除、<kbd>Ctrl</kbd>+<kbd>Z</kbd> で一度に戻ります。</p>
+<p><b>画像で書き出す</b>：<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd>（ファイル → 選んだ資料を1枚の画像で保存）。選んだ物を囲む範囲だけを1枚のPNGにします。何も選んでいないときは置いた資料すべて。画像は元の解像度のまま、背景は透明です。</p>
 <p class="tip">置いた物は全コマ共通で、ベース動画ごとに覚えます。「ペン表示」をオフ（<kbd>H</kbd>）では消えません。</p>
 </section>
 
@@ -5905,6 +5907,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     storage: () => showStorage().catch(e => say('確認できませんでした：' + (e?.message || e))),
     library: () => { $('#libPop').dataset.anchor = 'menu'; openLib($('#menuFile')); },
     exportFrame: () => exportFrame().catch(err => say('画像を保存できませんでした：' + err.message)),
+    exportSel: () => exportSel().catch(err => say('画像を保存できませんでした：' + err.message)),
     storeVideos: () => toggleStoreVideos(),
     rename: () => renameCurrent(),
     recent: () => xOpenDlg(),
@@ -6245,6 +6248,45 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (await saveFile(fn, blob)) say(`画像を保存しました：${fn}（社外には出さないでください）`);
   }
 
+  // 選んだ物（なければ置いた資料すべて）を、囲んだ範囲だけ1枚の PNG に。画像は元の解像度を保つ（背景は透明）
+  async function exportSel() {
+    if (!has() || !video.videoWidth) { say('先に動画を追加してください'); return; }
+    let items = mItems().map(o => o.st);
+    if (!items.length && selSt()) items = [selSt()];
+    const picked = items.length > 0;
+    if (!picked) items = boardOf().filter(it => !it.hide);
+    items = items.filter(it => it.t === 'i' || it.t === 'x' || it.t === 'v');
+    if (!items.length) { say('書き出す資料がありません（Ctrl+V で画像を置くか、選択ツールで選んでください）'); return; }
+    await Promise.all(items.filter(s => s.t === 'i').map(s => pic(s.k).ready));
+    const ord = [...boardOf(), ...(note(S.cur, 0)?.strokes || []), ...(note(S.cur, frame())?.strokes || [])];   // 画面と同じ重なり順
+    items.sort((a, b) => (a.b ? 0 : 1) - (b.b ? 0 : 1) || ord.indexOf(a) - ord.indexOf(b));
+    const hOf = (s) => s.h ?? s.w * 9 / 16;
+    const x0 = Math.min(...items.map(s => s.x)), y0 = Math.min(...items.map(s => s.y));
+    const x1 = Math.max(...items.map(s => s.x + s.w)), y1 = Math.max(...items.map(s => s.y + hOf(s)));
+    const ar = video.videoHeight / video.videoWidth;   // 座標は「動画の幅・高さ＝1」なので縦横の比を合わせる
+    // 一番細かい画像が縮まないだけの解像度（大きすぎるときは 8000px まで）
+    let px = video.videoWidth;
+    items.forEach(s => { const el = s.t === 'i' ? pic(s.k).img : s.t === 'v' ? bEls.get(s.id) : null; const nw = el?.naturalWidth || el?.videoWidth; if (nw && s.w > 0) px = Math.max(px, nw / s.w); });
+    let W = (x1 - x0) * px, H = (y1 - y0) * px * ar;
+    const lim = Math.min(1, 8000 / Math.max(W, H)); W = Math.max(1, Math.round(W * lim)); H = Math.max(1, Math.round(H * lim));
+    const PX = W / (x1 - x0), PY = H / (y1 - y0);
+    const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+    g.imageSmoothingQuality = 'high';
+    const m = { ox: -x0 * PX / dpr, oy: -y0 * PY / dpr, sw: PX / dpr, sh: PY / dpr };
+    for (const s of items) {
+      const x = (s.x - x0) * PX, y = (s.y - y0) * PY, w = s.w * PX, h = hOf(s) * PY;
+      try {
+        if (s.t === 'i') { const im = pic(s.k).img; if (im) g.drawImage(im, x, y, w, h); }
+        else if (s.t === 'v') { const el = bEls.get(s.id); if (el?.videoWidth) g.drawImage(el, x, y, w, h); }
+        else drawStroke(g, s, m);
+      } catch {}
+    }
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    const nm = (S.name || V().name.replace(/\.[^.]+$/, '')).replace(/[\\/:*?"<>|]/g, '_').slice(0, 50);
+    const fn = `${nm}_資料${picked ? '_選択' : ''}.png`;
+    if (await saveFile(fn, blob)) say(`${items.length}個を1枚の画像で保存しました：${fn}（${W}×${H}px）`);
+  }
+
   // ================= ドラッグで並べ替え（動画の一覧・集中モードのタブ・ペンのレイヤー） =================
   let dragItem = null;   // { kind, id }
   function sortable(box, sel, kind, horizontal, onDrop) {
@@ -6381,6 +6423,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     else if (ctrl && code === 'KeyY') { e.preventDefault(); redo(); }
     else if (ctrl && code === 'Space') { e.preventDefault(); if (!e.repeat) { spaceDown = true; spaceUsed = true; brushCur.style.display = 'none'; } zoomCur(e); }   // Photoshop と同じズーム
     else if (ctrl && e.shiftKey && code === 'KeyS') { e.preventDefault(); ACT.exportFrame(); }
+    else if (ctrl && e.shiftKey && code === 'KeyE') { e.preventDefault(); ACT.exportSel(); }
     else if (ctrl && (code === 'Digit0' || code === 'Numpad0')) { e.preventDefault(); fitView(); }
     else if (ctrl && (code === 'Digit1' || code === 'Numpad1')) { e.preventDefault(); zoom100(); }
     else if (ctrl && (e.key === '+' || e.key === '=' || e.key === ';' || code === 'NumpadAdd')) { e.preventDefault(); zoomStep(1); }
