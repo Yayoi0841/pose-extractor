@@ -310,7 +310,7 @@
   #saveState { color: var(--sub); }
 
   /* ダイアログ */
-  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 20; }
+  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 70; }
   .dlg { background: var(--bg); border: 1px solid #222; min-width: 320px; max-width: 480px; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
   .dlg .bb { padding: 14px; white-space: pre-wrap; line-height: 1.6; user-select: text; max-height: 70vh; overflow: auto; word-break: break-all; }
   .dlg .bf { display: flex; gap: 4px; padding: 0 8px 8px; }
@@ -353,11 +353,40 @@
   #rTree .tn .tw { width: 14px; text-align: center; color: #999; flex: none; } #rTree .tn .tc { margin-left: auto; color: #999; font-size: 10px; } #rTree .tn.on .tc { color: #e6f0ff; }
   #rTree .tn .tl { overflow: hidden; text-overflow: ellipsis; } #rTree hr { border: 0; border-top: 1px solid #3a3a3a; margin: 4px 0; }
   .rrow[draggable=true] { cursor: grab; } .rrow.dragging { opacity: .4; }
-  #rCtx { position: fixed; z-index: 30; display: block; min-width: 180px; }
+  #rCtx { position: fixed; z-index: 60; display: block; min-width: 180px; }
   #recentList .rfh { padding: 6px 10px 3px; color: #9fd0ff; font-size: 11px; font-weight: 600; border-bottom: 1px solid #444; background: var(--bg3); position: sticky; top: 0; }
   .rrow .rpin { color: #666; flex: none; } .rrow .rpin.pinned { color: #ffcc00; }
   .rrow .rfold { font-size: 10px; color: #9fd0ff; }
-  #recentDlg { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 19; width: min(820px, 94vw); max-width: none; height: min(560px, 86vh); display: flex; flex-direction: column; }
+  #recentDlg { position: fixed; inset: 0; z-index: 40; background: #262626; display: flex; flex-direction: column; font-size: 12px; }
+  #recentDlg.hidden { display: none; }
+  #recentDlg .xtitle { display: flex; align-items: center; gap: 12px; height: 34px; padding: 0 8px 0 14px; background: #1f1f1f; border-bottom: 1px solid #111; }
+  #recentDlg .xtitle b { font-size: 13px; } #recentDlg .xsub { color: #7fbf7f; font-size: 11px; }
+  #recentDlg .xclose { height: 24px; padding: 0 12px; }
+  #recentDlg .xnav, #recentDlg .xcmd { display: flex; align-items: center; gap: 4px; padding: 6px 10px; background: #2b2b2b; border-bottom: 1px solid #1c1c1c; }
+  #recentDlg .xnav > button { width: 28px; height: 26px; background: transparent; font-size: 14px; } #recentDlg .xnav > button:hover:not(:disabled) { background: #3d3d3d; } #recentDlg button:disabled { opacity: .35; }
+  #xAddr { flex: 1; display: flex; align-items: center; gap: 2px; height: 26px; padding: 0 6px; background: #1d1d1d; border: 1px solid #3a3a3a; border-radius: 4px; overflow: hidden; white-space: nowrap; margin: 0 6px; }
+  #xAddr .xcr { padding: 2px 6px; border-radius: 3px; cursor: pointer; } #xAddr .xcr:hover { background: #3a3a3a; } #xAddr .xcr.drop { outline: 2px solid #4aa3ff; } #xAddr .xgt { color: #777; }
+  #recentDlg #rSearch { width: 240px; height: 26px; }
+  #recentDlg .xcmd > button { height: 26px; padding: 0 10px; background: transparent; } #recentDlg .xcmd > button:hover:not(:disabled) { background: #3d3d3d; }
+  #recentDlg .xcmd .xprim { background: var(--hl); color: #fff; } #recentDlg .xcmd .xprim:hover { background: #4a96e0 !important; }
+  #recentDlg .xsep { width: 1px; height: 18px; background: #444; margin: 0 4px; } #recentDlg .xcmd select { height: 26px; }
+  #recentDlg .xseg { display: inline-flex; background: #1f1f1f; border-radius: 5px; padding: 2px; } #recentDlg .xseg button { height: 22px; background: transparent; padding: 0 8px; } #recentDlg .xseg button.on { background: #474747; }
+  #recentDlg .rbody { display: flex; flex: 1; min-height: 0; }
+  #recentDlg #rTree { width: 230px; padding: 6px 0; font-size: 12px; } #recentDlg #rTree .tn { height: 28px; }
+  #recentList { flex: 1; overflow-y: auto; outline: none; padding-bottom: 40px; user-select: none; }
+  #recentList.xlist .xhd, #recentList.xlist .xi { display: grid; grid-template-columns: minmax(220px, 2.2fr) 130px 80px minmax(160px, 2fr); align-items: center; gap: 0 12px; padding: 0 14px; }
+  #recentList .xhd { height: 28px; color: #999; border-bottom: 1px solid #3a3a3a; position: sticky; top: 0; background: #262626; z-index: 1; }
+  #recentList.xlist .xi { min-height: 32px; border: 1px solid transparent; }
+  #recentList .xi { cursor: default; } #recentList .xi:hover { background: #333; } #recentList .xi.sel { background: #26476b; border-color: #3a6ea5; } #recentList .xi.drop { background: #2f4256; outline: 2px solid #4aa3ff; outline-offset: -2px; } #recentList .xi.dragging { opacity: .45; }
+  #recentList .xn { display: flex; align-items: center; gap: 8px; min-width: 0; } #recentList .xn .rn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #recentList .xn input { height: 22px; width: 100%; }
+  #recentList .xic { font-size: 18px; flex: none; } #recentList .xpin { color: #ffcc00; } #recentList .xnow { font-size: 10px; color: #8fd18f; border: 1px solid #4b7a4b; border-radius: 3px; padding: 0 4px; flex: none; }
+  #recentList .xd, #recentList .xt, #recentList .xc { color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #recentList .xin { color: #9fd0ff; font-size: 10px; }
+  #recentList.xicons { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; padding: 12px; }
+  #recentList.xicons .xi { width: 120px; height: 112px; display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border: 1px solid transparent; border-radius: 4px; text-align: center; }
+  #recentList.xicons .xn { flex-direction: column; gap: 4px; width: 100%; } #recentList.xicons .xic { font-size: 42px; } #recentList.xicons .xn .rn { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; width: 100%; }
+  #recentList.xicons .xd, #recentList.xicons .xt, #recentList.xicons .xc { display: none; }
+  #recentList .xempty { padding: 60px 20px; text-align: center; color: #aaa; font-size: 13px; line-height: 1.8; } #recentList .xempty span { color: #777; font-size: 11px; }
+  #recentDlg .xstatus { height: 24px; line-height: 24px; padding: 0 12px; color: #999; font-size: 11px; background: #1f1f1f; border-top: 1px solid #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #libPop { position: fixed; z-index: 21; width: 330px; max-height: 70vh; display: flex; flex-direction: column; }
   #libPop #libPick { margin: 6px 8px 2px; height: 26px; }
   #libPop .rnote, #recentDlg .rnote { padding: 6px 10px; color: var(--sub); font-size: 11px; }
@@ -975,11 +1004,12 @@
   <div id="libList"></div>
 </div>
 
-<div id="recentDlg" class="dlg hidden">
-  <div class="ptitle"><b>最近の作業</b><span style="flex:1"></span><button class="mini" id="recentClose">×</button></div>
-  <div class="rtools"><button class="mini" id="rNewF" title="新しいフォルダ（選んでいるフォルダの中に作ります）">＋ フォルダ</button><span class="rpath" id="rPath"></span><span style="flex:1"></span><select id="rSort" title="並べ替え"><option value="d">更新日（新しい順）</option><option value="n">名前順</option></select><input id="rSearch" type="search" placeholder="さがす" spellcheck="false"></div>
-  <div class="rbody"><div id="rTree"></div><div id="recentList"></div></div>
-  <div class="rnote">作業を左のフォルダへドラッグで移動。フォルダもドラッグで別のフォルダの中へ。右クリックで名前変更・削除。★ とフォルダ入りの作業は自動で消えません（それ以外は新しい順に20件まで・このPCのブラウザ内だけ）。</div>
+<div id="recentDlg" class="hidden">
+  <div class="xtitle"><b>🗂 作業の整理</b><span class="xsub">このPCのブラウザの中だけに保存（外部送信なし）</span><span style="flex:1"></span><button id="recentClose" class="xclose" title="Esc">✕ ツールに戻る</button></div>
+  <div class="xnav"><button id="xBack" title="戻る (Alt+←)">←</button><button id="xFwd" title="進む (Alt+→)">→</button><button id="xUp" title="1つ上へ (Backspace)">↑</button><div id="xAddr"></div><input id="rSearch" type="search" placeholder="🔍 検索（Ctrl+F）" spellcheck="false"></div>
+  <div class="xcmd"><button id="xNew" class="xprim" title="新しいフォルダー（Ctrl+Shift+N）／新しい作業">＋ 新規 ▾</button><span class="xsep"></span><button id="xOpen" title="Enter・ダブルクリック">開く</button><button id="xRen" title="F2">名前の変更</button><button id="xMove" title="ドラッグでも移動できます">移動 ▾</button><button id="xPin" title="上に固定・自動で消えない">★ ピン留め</button><button id="xDel" title="Delete">削除</button><span style="flex:1"></span><select id="rSort" title="並べ替え"><option value="d">並べ替え：更新日時</option><option value="n">並べ替え：名前</option></select><span class="xseg"><button id="xvList" class="on" title="詳細">☰ 詳細</button><button id="xvIcon" title="大アイコン">▦ アイコン</button></span></div>
+  <div class="rbody"><div id="rTree"></div><div id="recentList" class="xlist" tabindex="0"></div></div>
+  <div class="xstatus" id="xStatus"></div>
 </div>
 
 <div id="modal" class="hidden"><div class="dlg"><div class="ptitle"><b id="modalTitle">確認</b></div><div class="bb" id="modalText"></div>
@@ -3023,6 +3053,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       const snap = snapshot(), packed = await packSnap(snap);
       const prev = recentIdx.find(r => r.id === sessId), sm = summary(snap, sessId);
       if (prev?.pin) sm.pin = true; if (prev?.folder) sm.folder = prev.folder;
+      if (!prev && pendingFolder) { sm.folder = pendingFolder; pendingFolder = null; }
       recentIdx = [sm, ...recentIdx.filter(r => r.id !== sessId)];
       const keep = (r) => r.pin || r.folder || r.id === sessId;   // ★・フォルダ入りは自動で消さない
       let loose = 0; const drop = recentIdx.filter(r => !keep(r) && ++loose > MAX_SESS); recentIdx = recentIdx.filter(r => !drop.includes(r));
@@ -3059,40 +3090,128 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   const inF = (r, f) => r.folder === f || r.folder?.startsWith(f + '/');
   async function saveIdx() { try { await tx('readwrite', st => { st.put(recentIdx, 'index'); st.put(folderList, 'folders'); }); } catch {} }
+  // ================= 作業の整理（Windows のエクスプローラーと同じ操作の専用画面） =================
+  // クリック＝選択（Ctrl／Shift で複数）、ダブルクリック／Enter＝開く、F2＝名前変更、Delete＝削除、Backspace＝上へ、
+  // Ctrl+Shift+N＝新しいフォルダ、右クリック＝メニュー、ドラッグ＝フォルダへ移動
+  let xSel = new Set(), xAnchor = null, xHist = [''], xPos = 0, xView = 'list', quietMove = false, pendingFolder = null, xItems = [];
+  const xCurF = () => rCur.startsWith('f:') ? rCur.slice(2) : '';
+  function xGo(v, push = true) {
+    rCur = v; xSel.clear(); xAnchor = null;
+    if (v.startsWith('f:')) { let p = fParent(v.slice(2)); while (p) { rOpen.add('f:' + p); p = fParent(p); } }
+    if (push) { xHist = xHist.slice(0, xPos + 1); if (xHist[xPos] !== v) { xHist.push(v); xPos = xHist.length - 1; } }
+    renderRecentList(); $('#recentList').focus({ preventScroll: true });
+  }
   function renderTree() {
     const fs = folders(), cnt = (f) => recentIdx.filter(r => inF(r, f)).length;
     const node = (val, label, icon, n, depth = 0, kids = false) => `<div class="tn${rCur === val ? ' on' : ''}" data-v="${esc(val)}"${val.startsWith('f:') ? ' draggable="true"' : ''} style="padding-left:${6 + depth * 14}px"><span class="tw" data-tw>${kids ? (rOpen.has(val) ? '▾' : '▸') : ''}</span><span>${icon}</span><span class="tl">${esc(label)}</span><span class="tc">${n || ''}</span></div>`;
-    let h = node('', 'すべての作業', '🗂', recentIdx.length) + node('*pin', 'ピン留め', '★', recentIdx.filter(r => r.pin).length) + '<hr>';
+    let h = node('', 'ホーム', '🏠', recentIdx.filter(r => !r.folder).length) + node('*pin', 'ピン留め', '★', recentIdx.filter(r => r.pin).length) + '<hr>';
     const walk = (parent, depth) => fs.filter(f => fParent(f) === parent).forEach(f => {
       const kids = fs.some(x => fParent(x) === f), v = 'f:' + f;
       h += node(v, fBase(f), '📁', cnt(f), depth, kids);
       if (kids && rOpen.has(v)) walk(f, depth + 1);
     });
     walk('', 0);
-    h += '<hr>' + node('*none', 'フォルダなし', '📄', recentIdx.filter(r => !r.folder).length);
     $('#rTree').innerHTML = h;
-    $('#rPath').textContent = rCur.startsWith('f:') ? '📁 ' + rCur.slice(2).split('/').join(' › ') : '';
+    // アドレスバー（パンくず）：クリックで移動、ドロップで移動先にもなる
+    const crumbs = [['', '🏠 ホーム']];
+    if (rCur === '*pin') crumbs.push(['*pin', '★ ピン留め']); else if (rCur === '*none') crumbs.push(['*none', 'フォルダなし']);
+    else if (rCur.startsWith('f:')) { const p = fParts(rCur.slice(2)); p.forEach((x, i) => crumbs.push(['f:' + p.slice(0, i + 1).join('/'), x])); }
+    $('#xAddr').innerHTML = crumbs.map(([v, l]) => `<span class="xcr" data-v="${esc(v)}">${esc(l)}</span>`).join('<span class="xgt">›</span>');
+    $('#xBack').disabled = xPos <= 0; $('#xFwd').disabled = xPos >= xHist.length - 1; $('#xUp').disabled = !rCur;
   }
   function renderRecentList() {
+    const tms = (v) => typeof v === 'number' ? v : Date.parse(v) || 0;
     if (rCur.startsWith('f:') && !folders().includes(rCur.slice(2))) rCur = '';
     renderTree();
-    const q = $('#rSearch').value.trim().toLowerCase(), v = rCur;
+    const q = $('#rSearch').value.trim().toLowerCase(), v = rCur, desc = $('#rSort').value;
     let list = recentIdx.filter(r => (!q || [r.name, r.folder, ...r.names].join(' ').toLowerCase().includes(q))
-      && (v === '' || (v === '*pin' ? r.pin : v === '*none' ? !r.folder : inF(r, v.slice(2)))));
-    const nm = (r) => r.name || r.names[0] || '';
-    list = $('#rSort').value === 'n' ? list.sort((a, b) => nm(a).localeCompare(nm(b), 'ja')) : list.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+      && (q ? (v === '' || (v === '*pin' ? r.pin : v === '*none' ? !r.folder : inF(r, v.slice(2)))) : (v === '' ? !r.folder : v === '*pin' ? r.pin : v === '*none' ? !r.folder : r.folder === v.slice(2))));
+    const nm = (r) => r.name || r.names[0] || '無題';
+    list.sort(desc === 'n' ? (a, b) => nm(a).localeCompare(nm(b), 'ja') : (a, b) => tms(b.savedAt) - tms(a.savedAt));
     list.sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0));
-    // 選んでいるフォルダの中のサブフォルダも、エクスプローラーのように一覧の上に出す
-    const subs = v.startsWith('f:') || v === '' ? folders().filter(f => fParent(f) === (v === '' ? '' : v.slice(2))) : [];
-    const subH = q ? '' : subs.map(f => `<div class="rrow rsub" data-sub="${esc(f)}" draggable="true"><span>📁</span><span class="rn"><b>${esc(fBase(f))}</b><br><span class="ri">${recentIdx.filter(r => inF(r, f)).length}件</span></span><button data-subopen>開く</button></div>`).join('');
-    $('#recentList').innerHTML = subH + (list.length ? list.map(r => rowHTML(r)).join('') : subH ? '' : `<div class="fbEmpty">${recentIdx.length ? (q ? '見つかりませんでした' : 'このフォルダは空です。作業をここへドラッグして入れられます') : '保存された作業はありません'}</div>`);
-    $$('#recentList .rrow[data-id]').forEach(r => r.draggable = true);
+    const subs = (v === '' || v.startsWith('f:')) ? folders().filter(f => (q ? fBase(f).toLowerCase().includes(q) && (v === '' || f.startsWith(xCurF() + '/')) : fParent(f) === xCurF())) : [];
+    const fDate = (f) => Math.max(0, ...recentIdx.filter(r => inF(r, f)).map(r => tms(r.savedAt)));
+    xItems = [...subs.map(f => ({ k: 'f:' + f, f })), ...list.map(r => ({ k: 's:' + r.id, r }))];
+    xSel = new Set([...xSel].filter(k => xItems.some(i => i.k === k)));
+    const head = xView === 'list' ? '<div class="xhd"><span>名前</span><span>更新日時</span><span>種類</span><span>中身</span></div>' : '';
+    const item = (it) => {
+      const on = xSel.has(it.k) ? ' sel' : '';
+      if (it.f) { const n = recentIdx.filter(r => inF(r, it.f)).length, d = fDate(it.f);
+        return `<div class="xi${on}" data-k="${esc(it.k)}" draggable="true"><span class="xn"><span class="xic">📁</span><span class="rn">${esc(q ? it.f.split('/').join(' › ') : fBase(it.f))}</span></span><span class="xd">${d ? esc(stamp(d)) : ''}</span><span class="xt">フォルダー</span><span class="xc">${n}件</span></div>`; }
+      const r = it.r, info = [r.poses && `ポーズ${r.poses}`, r.keys && `キー${r.keys}`, r.fb && `FB${r.fb}`].filter(Boolean).join('・');
+      const vids = r.names.length ? r.names[0] + (r.names.length > 1 ? ` ほか${r.names.length - 1}本` : '') : '動画なし';
+      return `<div class="xi${on}${r.id === sessId ? ' cur' : ''}" data-k="${esc(it.k)}" data-id="${esc(r.id)}" draggable="true" title="${esc(r.names.join('\n'))}"><span class="xn"><span class="xic">🎬</span><span class="rn">${esc(nm(r))}</span>${r.pin ? '<span class="xpin">★</span>' : ''}${r.id === sessId ? '<span class="xnow">開いている</span>' : ''}</span><span class="xd">${esc(stamp(r.savedAt))}</span><span class="xt">作業</span><span class="xc">${esc(vids)}${info ? '・' + info : ''}${q && r.folder ? `<br><span class="xin">📁 ${esc(r.folder.split('/').join(' › '))}</span>` : ''}</span></div>`;
+    };
+    const L = $('#recentList');
+    L.className = xView === 'icon' ? 'xicons' : 'xlist';
+    L.innerHTML = head + (xItems.length ? xItems.map(item).join('') : `<div class="xempty">${q ? '見つかりませんでした' : recentIdx.length || folders().length ? 'このフォルダーは空です<br><span>作業をここへドラッグするか、右クリック →「新規」で作れます</span>' : 'まだ作業がありません<br><span>動画を読み込むと自動でここに保存されます</span>'}</div>`);
+    xStatus();
   }
+  function xStatus() {
+    $$('#recentList .xi').forEach(el => el.classList.toggle('sel', xSel.has(el.dataset.k)));
+    const n = xSel.size, ss = [...xSel].filter(k => k.startsWith('s:'));
+    $('#xStatus').textContent = `${xItems.length} 個の項目` + (n ? `　${n} 個の項目を選択` : '') + '　｜　★ とフォルダー内の作業は自動で消えません（それ以外は新しい順に20件まで・このPCのブラウザ内だけ）';
+    $('#xOpen').disabled = n !== 1; $('#xRen').disabled = n !== 1; $('#xDel').disabled = !n; $('#xMove').disabled = !n; $('#xPin').disabled = !ss.length;
+  }
+  const selItems = () => xItems.filter(i => xSel.has(i.k));
+  function xOpenItem(it) { if (!it) return; if (it.f) xGo('f:' + it.f); else openSession(it.r.id); }
+  function xRename(it) {
+    if (!it) return;
+    const el = $(`#recentList .xi[data-k="${CSS.escape(it.k)}"]`); if (!el) return;
+    if (it.f) inlineEdit(el.querySelector('.rn'), fBase(it.f), 'フォルダー名', (v) => renameFolder(it.f, v));
+    else renameRow(el);
+  }
+  async function xNewFolder() {
+    const parent = xCurF();
+    let n = 1, f; do { f = cleanF((parent ? parent + '/' : '') + '新しいフォルダー' + (n > 1 ? ` (${n})` : '')); n++; } while (folders().includes(f));
+    folderList.push(f); if (parent) rOpen.add('f:' + parent);
+    if (!rCur.startsWith('f:') && rCur !== '') xGo('', true);
+    await saveIdx(); xSel = new Set(['f:' + f]); renderRecentList();
+    xRename(xItems.find(i => i.k === 'f:' + f));
+  }
+  async function xNewWork() {
+    pendingFolder = xCurF() || null;
+    $('#recentDlg').classList.add('hidden');
+    await newWork();
+    say(pendingFolder ? `新しい作業を始めました。動画を読み込むと「${pendingFolder.split('/').join(' › ')}」に保存されます` : '新しい作業を始めました（動画を読み込むと自動で保存されます）');
+  }
+  async function xMoveSel(dst) {
+    const its = selItems(); if (!its.length) return;
+    quietMove = true;
+    try { for (const it of its) { if (it.f) { if (it.f !== dst) await moveFolder(it.f, dst); } else await moveTo(it.r.id, dst); } }
+    finally { quietMove = false; }
+    xSel.clear(); renderRecentList();
+    say(`${its.length}個を「${dst ? dst.split('/').join(' › ') : 'ホーム'}」に移動しました`);
+  }
+  function xMoveMenu(x, y) {
+    ctxMenu(x, y, [['🏠 ホーム（フォルダーの外）', () => xMoveSel('')], ...folders().map(f => ['📁 ' + f.split('/').join(' › '), () => xMoveSel(f)]), ['-'], ['＋ 新しいフォルダーを作って移動', async () => { const v = cleanF(prompt('新しいフォルダー名', '新しいフォルダー') || ''); if (v) { const f = cleanF((xCurF() ? xCurF() + '/' : '') + v); if (!folderList.includes(f)) folderList.push(f); await xMoveSel(f); } }]]);
+  }
+  async function xDeleteSel() {
+    const its = selItems(); if (!its.length) return;
+    const fs = its.filter(i => i.f), ss = its.filter(i => i.r);
+    const msg = (ss.length ? `作業 ${ss.length} 件を削除します（メモ・ペン・ポーズも消えます。元に戻せません）。\n` : '') + (fs.length ? `フォルダー ${fs.length} 個を削除します（中の作業は消えずに1つ上へ移ります）。` : '');
+    if (!(await ask(msg + '\nよろしいですか？', '削除'))) return;
+    for (const it of fs) { const f = it.f, up = fParent(f) || undefined; recentIdx.forEach(r => { if (inF(r, f)) r.folder = up; }); folderList = folders().filter(x => x !== f && !x.startsWith(f + '/')); }
+    const ids = new Set(ss.map(i => i.r.id));
+    if (ids.size) {
+      recentIdx = recentIdx.filter(r => !ids.has(r.id));
+      try { await tx('readwrite', st => ids.forEach(id => st.delete('sess:' + id))); } catch {}
+      if (ids.has(sessId)) { sessId = null; ssSet(null); resetWork(); }
+      gcFiles();
+    }
+    await saveIdx(); xSel.clear(); renderRecent(); say(`${its.length}個を削除しました`);
+  }
+  async function xPinSel() {
+    const rs = selItems().filter(i => i.r).map(i => i.r); if (!rs.length) return;
+    const on = !rs.every(r => r.pin); rs.forEach(r => r.pin = on || undefined);
+    await saveIdx(); renderRecent(); say(on ? '★ を付けました（上に固定・自動で消えません）' : '★ を外しました');
+  }
+  function xNewMenu(x, y) { ctxMenu(x, y, [['📁 フォルダー', xNewFolder], ['🎬 新しい作業' + (xCurF() ? '（このフォルダーに保存）' : ''), xNewWork]]); }
   async function togglePin(id) { const r = recentIdx.find(x => x.id === id); if (!r) return; r.pin = !r.pin || undefined; await saveIdx(); renderRecent(); say(r.pin ? '★ を付けました（自動で消えなくなります）' : '★ を外しました'); }
   async function moveTo(id, f) {
     const r = recentIdx.find(x => x.id === id); if (!r) return;
     r.folder = f || undefined; if (f && !folderList.includes(f)) folderList.push(f);
-    await saveIdx(); renderRecent(); say(f ? `「${f.split('/').join(' › ')}」に移動しました` : 'フォルダから出しました');
+    await saveIdx(); renderRecent(); if (!quietMove) say(f ? `「${f.split('/').join(' › ')}」に移動しました` : 'フォルダから出しました');
   }
   async function moveFolder(src, dstParent) {   // フォルダごと別のフォルダの中へ（中の作業・サブフォルダも一緒に）
     if (dstParent === src || dstParent.startsWith(src + '/')) { say('フォルダを自分の中には入れられません'); return; }
@@ -3104,19 +3223,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     folderList = [...new Set(folders().map(re))];
     if (rCur === 'f:' + src || rCur.startsWith('f:' + src + '/')) rCur = 'f:' + re(rCur.slice(2));
     if (dstParent) rOpen.add('f:' + dstParent);
-    await saveIdx(); renderRecent(); say(`フォルダを「${nw.split('/').join(' › ')}」に移動しました`);
-  }
-  function editInTree(f, done) {   // 木の中でその場で名前入力
-    const el = $(`#rTree .tn[data-v="${CSS.escape('f:' + f)}"] .tl`) || $('#rTree .tn.on .tl');
-    if (!el) return;
-    inlineEdit(el, f ? fBase(f) : '', 'フォルダ名', done);
-  }
-  async function newFolder() {
-    const parent = rCur.startsWith('f:') ? rCur.slice(2) : '';
-    let base = '新しいフォルダ', n = 1, f; do { f = cleanF((parent ? parent + '/' : '') + base + (n > 1 ? ` (${n})` : '')); n++; } while (folders().includes(f));
-    folderList.push(f); if (parent) rOpen.add('f:' + parent);
-    await saveIdx(); renderRecentList();
-    editInTree(f, (v) => renameFolder(f, v));
+    await saveIdx(); renderRecent(); if (!quietMove) say(`フォルダを「${nw.split('/').join(' › ')}」に移動しました`);
   }
   async function renameFolder(f, v) {
     v = v == null ? null : cleanF(v.replace(/\//g, '・'));
@@ -3138,12 +3245,6 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (rCur === 'f:' + f || rCur.startsWith('f:' + f + '/')) rCur = up ? 'f:' + up : '';
     await saveIdx(); renderRecent(); say('フォルダを削除しました（作業は残っています）');
   }
-  function setFolder(row) {   // 📁 ボタン：フォルダを選んで移動（右クリックメニューと同じ）
-    const r = recentIdx.find(x => x.id === row.dataset.id); if (!r) return;
-    const b = row.querySelector('[data-fold]').getBoundingClientRect();
-    ctxMenu(b.left, b.bottom, [['フォルダなし', () => moveTo(r.id, '')], ...folders().map(f => ['📁 ' + f.split('/').join(' › '), () => moveTo(r.id, f)]), ['＋ 新しいフォルダを作って入れる', async () => { await newFolderFor(r.id); }]]);
-  }
-  async function newFolderFor(id) { const v = cleanF(prompt('新しいフォルダ名（「親/子」で中に作れます）', '') || ''); if (v) await moveTo(id, v); }
   function ctxMenu(x, y, items) {
     $('#rCtx')?.remove();
     const m = document.createElement('div'); m.id = 'rCtx'; m.className = 'dropdown';
@@ -3152,44 +3253,100 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const r = m.getBoundingClientRect(); m.style.left = Math.min(x, innerWidth - r.width - 4) + 'px'; m.style.top = Math.min(y, innerHeight - r.height - 4) + 'px';
     setTimeout(() => document.addEventListener('pointerdown', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('pointerdown', off, true); } }, true), 0);
   }
-  $('#rNewF').onclick = newFolder;
+
+  // ---- 画面の操作 ----
+  const xOpenDlg = () => { renderRecent(); $('#recentDlg').classList.remove('hidden'); setTimeout(() => $('#recentList').focus({ preventScroll: true }), 0); };
+  $('#xBack').onclick = () => { if (xPos > 0) { xPos--; xGo(xHist[xPos], false); } };
+  $('#xFwd').onclick = () => { if (xPos < xHist.length - 1) { xPos++; xGo(xHist[xPos], false); } };
+  $('#xUp').onclick = () => { if (!rCur) return; xGo(rCur.startsWith('f:') && fParent(rCur.slice(2)) ? 'f:' + fParent(rCur.slice(2)) : ''); };
+  $('#xNew').onclick = (e) => { const b = e.currentTarget.getBoundingClientRect(); xNewMenu(b.left, b.bottom + 2); };
+  $('#xOpen').onclick = () => xOpenItem(selItems()[0]);
+  $('#xRen').onclick = () => xRename(selItems()[0]);
+  $('#xMove').onclick = (e) => { const b = e.currentTarget.getBoundingClientRect(); xMoveMenu(b.left, b.bottom + 2); };
+  $('#xPin').onclick = xPinSel; $('#xDel').onclick = xDeleteSel;
+  $('#xvList').onclick = () => { xView = 'list'; $('#xvList').classList.add('on'); $('#xvIcon').classList.remove('on'); renderRecentList(); };
+  $('#xvIcon').onclick = () => { xView = 'icon'; $('#xvIcon').classList.add('on'); $('#xvList').classList.remove('on'); renderRecentList(); };
   $('#rSort').onchange = renderRecentList;
-  $('#rSearch').oninput = renderRecentList; $('#rSearch').addEventListener('keydown', e => e.stopPropagation());
+  $('#rSearch').oninput = renderRecentList; $('#rSearch').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') { $('#rSearch').value = ''; renderRecentList(); } });
+  $('#xAddr').addEventListener('click', e => { const c = e.target.closest('.xcr'); if (c) xGo(c.dataset.v); });
   $('#rTree').addEventListener('click', e => {
     const n = e.target.closest('.tn'); if (!n || e.target.closest('input')) return;
     if (e.target.closest('[data-tw]') && n.querySelector('.tw').textContent) { const v = n.dataset.v; rOpen.has(v) ? rOpen.delete(v) : rOpen.add(v); renderTree(); return; }
-    rCur = n.dataset.v; if (rCur.startsWith('f:')) { let p = fParent(rCur.slice(2)); while (p) { rOpen.add('f:' + p); p = fParent(p); } }
-    renderRecentList();
+    xGo(n.dataset.v);
   });
-  $('#rTree').addEventListener('dblclick', e => { const n = e.target.closest('.tn'); if (n?.querySelector('.tw').textContent) { const v = n.dataset.v; rOpen.has(v) ? rOpen.delete(v) : rOpen.add(v); renderTree(); } });
   $('#rTree').addEventListener('contextmenu', e => {
     const n = e.target.closest('.tn'); e.preventDefault(); if (!n) return;
     const v = n.dataset.v;
-    if (!v.startsWith('f:')) { ctxMenu(e.clientX, e.clientY, [['＋ 新しいフォルダ', () => { rCur = ''; newFolder(); }]]); return; }
+    if (!v.startsWith('f:')) { ctxMenu(e.clientX, e.clientY, [['📁 新しいフォルダー', () => { xGo(''); xNewFolder(); }]]); return; }
     const f = v.slice(2);
-    ctxMenu(e.clientX, e.clientY, [['＋ この中に新しいフォルダ', () => { rCur = v; newFolder(); }], ['名前を変更', () => editInTree(f, (x) => renameFolder(f, x))], ['-'], ['削除（作業は残す）', () => deleteFolder(f)]]);
+    ctxMenu(e.clientX, e.clientY, [['開く', () => xGo(v)], ['📁 この中に新しいフォルダー', () => { xGo(v); xNewFolder(); }], ['🎬 この中に新しい作業', () => { xGo(v); xNewWork(); }], ['-'], ['名前の変更', () => { xGo(fParent(f) ? 'f:' + fParent(f) : ''); xSel = new Set([v]); xStatus(); xRename({ k: v, f }); }], ['削除（中の作業は残す）', () => deleteFolder(f)]]);
   });
-  $('#recentList').addEventListener('contextmenu', e => {
-    const row = e.target.closest('.rrow'); if (!row) return; e.preventDefault();
-    if (row.dataset.sub) { const f = row.dataset.sub; ctxMenu(e.clientX, e.clientY, [['開く', () => { rCur = 'f:' + f; rOpen.add('f:' + fParent(f)); renderRecentList(); }], ['名前を変更', () => { rCur = 'f:' + fParent(f); renderRecentList(); editInTree(f, (x) => renameFolder(f, x)); }], ['-'], ['削除（作業は残す）', () => deleteFolder(f)]]); return; }
-    const r = recentIdx.find(x => x.id === row.dataset.id); if (!r) return;
-    ctxMenu(e.clientX, e.clientY, [[r.id === sessId ? '（開いている作業）' : '開く', () => openSession(r.id)], [r.pin ? '★ を外す' : '★ を付ける', () => togglePin(r.id)], ['名前を変更', () => renameRow(row)], ['フォルダに移動…', () => setFolder(row)], ...(r.folder ? [['フォルダから出す', () => moveTo(r.id, '')]] : []), ['-'], ['削除', () => deleteSession(r.id)]]);
+  const L$ = $('#recentList');
+  L$.addEventListener('click', e => {
+    if (e.target.closest('input')) return;
+    const el = e.target.closest('.xi');
+    if (!el) { xSel.clear(); xStatus(); return; }
+    const k = el.dataset.k, idx = xItems.findIndex(i => i.k === k);
+    if (e.shiftKey && xAnchor != null) { const a = xItems.findIndex(i => i.k === xAnchor); const [s, t] = [Math.min(a, idx), Math.max(a, idx)]; if (!(e.ctrlKey || e.metaKey)) xSel.clear(); xItems.slice(s, t + 1).forEach(i => xSel.add(i.k)); }
+    else if (e.ctrlKey || e.metaKey) { xSel.has(k) ? xSel.delete(k) : xSel.add(k); xAnchor = k; }
+    else { xSel = new Set([k]); xAnchor = k; }
+    xStatus();
   });
-  $('#recentList').addEventListener('dblclick', e => { const s = e.target.closest('.rsub'); if (s) { rCur = 'f:' + s.dataset.sub; rOpen.add('f:' + fParent(s.dataset.sub)); renderRecentList(); } });
-  // ---- ドラッグで移動（作業 → フォルダ、フォルダ → フォルダ） ----
+  L$.addEventListener('dblclick', e => { if (e.target.closest('input')) return; const el = e.target.closest('.xi'); if (el) xOpenItem(xItems.find(i => i.k === el.dataset.k)); });
+  L$.addEventListener('contextmenu', e => {
+    e.preventDefault(); if (e.target.closest('input')) return;
+    const el = e.target.closest('.xi');
+    if (!el) { xSel.clear(); xStatus(); ctxMenu(e.clientX, e.clientY, [['📁 新しいフォルダー', xNewFolder], ['🎬 新しい作業' + (xCurF() ? '（このフォルダーに保存）' : ''), xNewWork], ['-'], ['並べ替え：更新日時', () => { $('#rSort').value = 'd'; renderRecentList(); }], ['並べ替え：名前', () => { $('#rSort').value = 'n'; renderRecentList(); }]]); return; }
+    if (!xSel.has(el.dataset.k)) { xSel = new Set([el.dataset.k]); xAnchor = el.dataset.k; xStatus(); }
+    const its = selItems(), one = its.length === 1 ? its[0] : null, ss = its.filter(i => i.r);
+    ctxMenu(e.clientX, e.clientY, [
+      ...(one ? [[one.f ? '開く' : one.r.id === sessId ? '（今開いている作業）' : '開く', () => xOpenItem(one)]] : []),
+      ...(ss.length ? [[ss.every(i => i.r.pin) ? '★ を外す' : '★ を付ける（上に固定）', xPinSel]] : []),
+      ['移動…', () => xMoveMenu(e.clientX, e.clientY)],
+      ...(one ? [['名前の変更', () => xRename(one)]] : []),
+      ['-'], ['削除', xDeleteSel]]);
+  });
+  // キーボード（エクスプローラーと同じ）。この画面を開いている間はツールのショートカットを止める
+  window.addEventListener('keydown', e => {
+    if ($('#recentDlg').classList.contains('hidden') || !$('#modal').classList.contains('hidden')) return;
+    if (e.target.matches('input, textarea, select')) return;
+    e.stopImmediatePropagation();
+    const k = e.key, its = selItems(), ctrl = e.ctrlKey || e.metaKey;
+    const mv = (d) => { if (!xItems.length) return; const cols = xView === 'icon' ? Math.max(1, Math.floor(L$.clientWidth / 128)) : 1; let i = xItems.findIndex(x => x.k === xAnchor); i = i < 0 ? 0 : Math.max(0, Math.min(xItems.length - 1, i + d * (d === 1 || d === -1 ? 1 : cols) / (d === 1 || d === -1 ? 1 : Math.abs(d)))); const kk = xItems[i].k; if (e.shiftKey) xSel.add(kk); else xSel = new Set([kk]); xAnchor = kk; xStatus(); L$.querySelector(`.xi[data-k="${CSS.escape(kk)}"]`)?.scrollIntoView({ block: 'nearest' }); };
+    if (k === 'Escape') { if (xSel.size) { xSel.clear(); xStatus(); } else $('#recentDlg').classList.add('hidden'); }
+    else if (k === 'Enter') xOpenItem(its[0]);
+    else if (k === 'F2') xRename(its[0]);
+    else if (k === 'Delete') xDeleteSel();
+    else if (k === 'Backspace' || (e.altKey && k === 'ArrowUp')) $('#xUp').click();
+    else if (e.altKey && k === 'ArrowLeft') $('#xBack').click();
+    else if (e.altKey && k === 'ArrowRight') $('#xFwd').click();
+    else if (ctrl && e.shiftKey && (k === 'N' || k === 'n')) xNewFolder();
+    else if (ctrl && (k === 'a' || k === 'A')) { xItems.forEach(i => xSel.add(i.k)); xStatus(); }
+    else if (ctrl && (k === 'f' || k === 'F')) $('#rSearch').focus();
+    else if (k === 'ArrowDown') mv(xView === 'icon' ? 2 : 1); else if (k === 'ArrowUp') mv(xView === 'icon' ? -2 : -1);
+    else if (k === 'ArrowRight' && xView === 'icon') mv(1); else if (k === 'ArrowLeft' && xView === 'icon') mv(-1);
+    else return;
+    e.preventDefault();
+  }, true);
+  // ---- ドラッグで移動（選んでいるものをまとめて。移動先：左の木・一覧のフォルダー・アドレスバー） ----
   let rDrag = null;
   $('#recentDlg').addEventListener('dragstart', e => {
-    const row = e.target.closest?.('.rrow[data-id], .rsub, #rTree .tn[draggable]'); if (!row) return;
-    rDrag = row.dataset.id ? { id: row.dataset.id } : { f: row.dataset.sub || row.dataset.v.slice(2) };
-    e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'pose-recent'); row.classList.add('dragging');
+    const el = e.target.closest?.('.xi, #rTree .tn[draggable]'); if (!el) return;
+    if (el.classList.contains('xi')) { if (!xSel.has(el.dataset.k)) { xSel = new Set([el.dataset.k]); xAnchor = el.dataset.k; xStatus(); } rDrag = 'sel'; }
+    else rDrag = { f: el.dataset.v.slice(2) };
+    e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'pose-recent');
+    if (rDrag === 'sel') $$('#recentList .xi.sel').forEach(x => x.classList.add('dragging')); else el.classList.add('dragging');
   });
   $('#recentDlg').addEventListener('dragend', () => { rDrag = null; $$('#recentDlg .dragging, #recentDlg .drop').forEach(x => x.classList.remove('dragging', 'drop')); });
-  const dropTarget = (e) => { const n = e.target.closest?.('#rTree .tn, #recentList .rsub'); if (!n) return null; const v = n.dataset.sub != null ? 'f:' + n.dataset.sub : n.dataset.v; return v === '*pin' ? null : { n, v }; };
+  const dropTarget = (e) => {
+    const n = e.target.closest?.('#rTree .tn, #recentList .xi[data-k^="f:"], #xAddr .xcr'); if (!n) return null;
+    const v = n.dataset.k || n.dataset.v; if (v === '*pin' || n.classList.contains('dragging')) return null;
+    return { n, dst: v.startsWith('f:') ? v.slice(2) : '' };
+  };
   $('#recentDlg').addEventListener('dragover', e => { if (!rDrag) return; const t = dropTarget(e); $$('#recentDlg .drop').forEach(x => x !== t?.n && x.classList.remove('drop')); if (!t) return; e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; t.n.classList.add('drop'); });
   $('#recentDlg').addEventListener('drop', e => {
     if (!rDrag) return; const t = dropTarget(e); e.preventDefault(); e.stopPropagation(); if (!t) return;
-    const dst = t.v.startsWith('f:') ? t.v.slice(2) : '';
-    if (rDrag.id) moveTo(rDrag.id, dst); else moveFolder(rDrag.f, dst);
+    if (rDrag === 'sel') xMoveSel(t.dst); else moveFolder(rDrag.f, t.dst);
     rDrag = null;
   });
   function rowHTML(r, del) {
@@ -3316,18 +3473,18 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   function clickRecent(e) {
     const row = e.target.closest('.rrow');
-    if (e.target.closest('[data-all]')) { $('#recentDlg').classList.remove('hidden'); return; }
+    if (e.target.closest('[data-all]')) { xOpenDlg(); return; }
     if (!row) return;
     if (e.target.closest('input')) return;
     if (e.target.closest('[data-del]')) deleteSession(row.dataset.id);
     else if (e.target.closest('[data-ren]')) renameRow(row);
     else if (e.target.closest('[data-subopen]')) { rCur = 'f:' + row.dataset.sub; rOpen.add('f:' + fParent(row.dataset.sub)); renderRecentList(); }
     else if (e.target.closest('[data-pin]')) togglePin(row.dataset.id);
-    else if (e.target.closest('[data-fold]')) setFolder(row);
+    else if (e.target.closest('[data-fold]')) { xOpenDlg(); xSel = new Set(['s:' + row.dataset.id]); renderRecentList(); }
     else if (e.target.closest('[data-open]')) openSession(row.dataset.id);
   }
   $('#recentBox').addEventListener('click', clickRecent);
-  [$('#recentBox'), $('#recentList')].forEach(el => el.addEventListener('dblclick', e => { const row = e.target.closest('.rrow'); if (row && e.target.closest('.rn') && !e.target.closest('input')) renameRow(row); }));
+  [$('#recentBox')].forEach(el => el.addEventListener('dblclick', e => { const row = e.target.closest('.rrow'); if (row && e.target.closest('.rn') && !e.target.closest('input')) renameRow(row); }));
   // ---- 作業の名前 ----
   const defaultName = () => S.videos[0]?.name.replace(/\.[^.]+$/, '') || '';
   function renderName() {
@@ -3369,7 +3526,6 @@ If you want to offset all timestamps of a track such that the first one is zero,
       renderRecent(); say(v ? `名前を「${v}」にしました` : '名前を消しました');
     });
   }
-  $('#recentList').addEventListener('click', clickRecent);
   $('#recentClose').onclick = () => $('#recentDlg').classList.add('hidden');
   // ================= 読み込むデータの安全チェック =================
   // プロジェクトファイル（.json）や保存データに、画面を乗っ取るような文字列や変な値が入っていても無害にする
@@ -5418,7 +5574,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     exportFrame: () => exportFrame().catch(err => say('画像を保存できませんでした：' + err.message)),
     storeVideos: () => toggleStoreVideos(),
     rename: () => renameCurrent(),
-    recent: () => { renderRecent(); $('#recentDlg').classList.remove('hidden'); },
+    recent: () => xOpenDlg(),
     guide: () => openGuide(),
     keys: () => $('#keys').classList.toggle('hidden'),
     about: () => ask('■ データはどこに保存される？\nこのPCのブラウザの中（IndexedDB）にだけ自動保存されます。外部への送信はページの設定で禁止しています。\n\n■ 動画ファイルは？\n「ファイル → 動画もこのPCのブラウザに保存」がオンのとき（初期設定）、動画もこのPCのブラウザの中に保存され、次回やアップデート後も入れ直さずに開けます。オフにすると保存せず、次回は同じ動画をもう一度追加するとメモ・ペン・ポーズがひも付きます。2GBを超える動画や空き容量が足りないときは保存しません。どの作業からも使われなくなった動画と、さわっていない作業の動画は設定した日数（初期設定20日・「ファイル → 動画を残す日数」で変更）で自動で消えます（メモ・ペン・ポーズ・キーは残り、開き直したときは動画だけ追加し直せばひも付きます）。\n\n■ 新しいタブで開いたら？\n何もない状態で始まります。前の作業は、画面中央の一覧か「ファイル → 最近の作業」から開けます（最近の20件まで）。同じタブの再読み込みでは、そのまま戻ります。\n\n■ 日をまたぐFB修正では？\nブラウザの設定で終了時にデータが消える場合があります。念のため「ファイル → プロジェクトを保存」で .json を残しておくと確実です（ポーズ画像を含むので社外に出さないでください）。', 'データの保存について', false, true),
