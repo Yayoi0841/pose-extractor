@@ -4098,17 +4098,55 @@ If you want to offset all timestamps of a track such that the first one is zero,
   // ② 一度表示したコマは小さなJPEGで覚えておき、本物の読み込みが終わるまでの間すぐに見せる（再生しただけでも覚える）
   const pcache = new Map(), pcC = document.createElement('canvas'), pcX = pcC.getContext('2d'), sprev = $('#scrubPrev'), spx = sprev.getContext('2d');
   let pcVid = null, scrub = null;
-  function pcStore(f) {
-    if (!has() || !video.videoWidth || video.seeking) return;
+  function pcStore(f, src = video) {
+    if (!has() || !src.videoWidth || src.seeking) return;
     const v = V(); if (pcVid !== v.id) { pcache.clear(); pcVid = v.id; }
     if (pcache.has(f)) return;
-    const w = Math.min(480, video.videoWidth); pcC.width = w; pcC.height = Math.round(video.videoHeight * w / video.videoWidth);
-    pcX.drawImage(video, 0, 0, pcC.width, pcC.height);
-    pcC.toBlob(b => { if (b && pcVid === v.id) { pcache.set(f, b); if (pcache.size > 6000) pcache.delete(pcache.keys().next().value); } }, 'image/jpeg', 0.72);
+    const w = Math.min(960, src.videoWidth); pcC.width = w; pcC.height = Math.round(src.videoHeight * w / src.videoWidth);   // 矢印で送るときも見られる画質
+    pcX.drawImage(src, 0, 0, pcC.width, pcC.height);
+    pcache.set(f, null);   // 二重に作らない印
+    pcC.toBlob(b => { if (pcVid !== v.id) return; if (b) { pcache.set(f, b); while (pcache.size > 3000) pcache.delete(pcache.keys().next().value); } else pcache.delete(f); }, 'image/jpeg', 0.8);
+  }
+  // ---- 先読み：止まっている間に、見えない2つ目の動画で再生範囲を一通り再生して全部のコマを覚える ----
+  // 覚えたコマは矢印キーで送ったときにすぐ出せる（読み込み待ちで止まらない）。再生を始めたら先読みは休む
+  let pf = null, pfTimer = null;
+  function prefillStop() { if (pf) { pf.dead = true; pf.el.pause(); pf.el.removeAttribute('src'); pf.el.load(); pf.el.remove(); pf = null; } }
+  function prefillKick() { clearTimeout(pfTimer); pfTimer = setTimeout(prefillStart, 600); }
+  function prefillStart() {
+    prefillStop();
+    if (!has() || !HAS_RVFC || !video.paused || stepPlay) return;
+    const v = V(); if (!v.url) return;
+    const el = document.createElement('video'); Object.assign(el, { muted: true, playsInline: true, preload: 'auto' });
+    el.style.cssText = 'position:fixed;right:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none';
+    el.src = v.url; document.body.append(el);
+    const F = fps(), lo = v.rStart, hi = v.rEnd;
+    const me = pf = { el, vid: v.id, pass: 0, dead: false, lo, hi };
+    const missing = () => { for (let f = lo; f <= hi; f++) if (!pcache.has(f)) return f; return 0; };
+    const run = () => {
+      if (me.dead || pcVid !== me.vid && pcVid !== null) return;
+      const m = missing();
+      if (!m || me.pass >= 4) { prefillStop(); return; }
+      me.pass++;
+      el.currentTime = (m - 0.5) / F;
+      el.addEventListener('seeked', () => {
+        if (me.dead) return;
+        el.playbackRate = me.pass === 1 ? 1 : 0.5;   // 取りこぼしは2周目以降ゆっくりで拾う
+        const cb = (_, meta) => {
+          if (me.dead) return;
+          const f = Math.floor(meta.mediaTime * F + 1e-3) + 1;
+          if (S.cur === me.vid && f >= lo && f <= hi) pcStore(f, el);
+          if (f >= hi || el.ended) { el.pause(); run(); return; }
+          el.requestVideoFrameCallback(cb);
+        };
+        el.requestVideoFrameCallback(cb);
+        el.play().catch(() => prefillStop());
+      }, { once: true });
+    };
+    el.addEventListener('loadeddata', run, { once: true });
   }
   function pcNear(n) {
     if (pcVid !== S.cur) return null;
-    for (let d = 0; d <= 6; d++) { if (pcache.has(n - d)) return pcache.get(n - d); if (d && pcache.has(n + d)) return pcache.get(n + d); }
+    for (let d = 0; d <= 6; d++) { if (pcache.get(n - d)) return pcache.get(n - d); if (d && pcache.get(n + d)) return pcache.get(n + d); }
     return null;
   }
   function showPrev(n) {
@@ -4157,10 +4195,12 @@ If you want to offset all timestamps of a track such that the first one is zero,
     V().frame = n;
     update(n);
   }
-  const step = (d) => {   // Maya と同じく、範囲の端で反対側に回り込む
+  const step = (d, held) => {   // Maya と同じく、範囲の端で反対側に回り込む
     if (!has()) return;
-    const v = V(), span = v.rEnd - v.rStart + 1;
-    goto(v.rStart + ((((frame() + d) - v.rStart) % span) + span) % span);
+    const v = V(), span = v.rEnd - v.rStart + 1, from = scrub ? scrub.want : frame();
+    const n = v.rStart + ((((from + d) - v.rStart) % span) + span) % span;
+    if (held) { scrubTo(n); return; }   // 矢印キー：読み込み待ちを積まず、覚えたコマをすぐ見せる（離したら本物に）
+    goto(n);
   };
   // 登録ポーズ（タメ／ヒット）
   function keysHere(vid = S.cur) {
@@ -4220,8 +4260,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
       video.play(); watchFrames();
     } else pauseExact();
   }
-  video.addEventListener('play', () => { $('#playIco').innerHTML = ICO_PAUSE; ghostHide(); tick(); });
-  video.addEventListener('pause', () => { if (!ovid.paused) ovid.pause(); if (stepPlay || looping) return; $('#playIco').innerHTML = ICO_PLAY; if (has()) { settleFrame(); V().frame = frame(); update(); save(); ghostRefresh(); } });
+  video.addEventListener('play', () => { prefillStop(); $('#playIco').innerHTML = ICO_PAUSE; ghostHide(); tick(); });
+  video.addEventListener('pause', () => { if (!ovid.paused) ovid.pause(); if (stepPlay || looping) return; $('#playIco').innerHTML = ICO_PLAY; if (has()) { settleFrame(); V().frame = frame(); update(); save(); ghostRefresh(); prefillKick(); } });
   video.addEventListener('seeked', () => { if (scrub) { update(scrub.at); if (scrub.want !== scrub.at) { curF.value = scrub.want; drawTS(scrub.want); } } else update(); });
   video.addEventListener('ended', () => { const v = V(); if (!v || looping) return; loopBack(0); });
   // ---- 再生範囲でループ：範囲の最後のフレームが表示された瞬間に止め、1コマ分待ってから先頭へ ----
@@ -4489,6 +4529,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   // ---- レンジスライダー ----
   const rs = $('#rs'), rsBar = $('#rsBar');
   function syncUI() {
+    if (has() && video.paused && (!pf || pf.vid !== S.cur || pf.lo !== V().rStart || pf.hi !== V().rEnd)) prefillKick();
     const v = V(), T = total() || 1, ok = has();
     if (ok) { v.rStart = Math.max(1, Math.min(v.rStart, T)); v.rEnd = Math.max(v.rStart, Math.min(v.rEnd ?? T, T)); }
     if (ok && video.paused && !stepPlay && !looping) { const f = frame(); if (f < v.rStart || f > v.rEnd) { video.currentTime = (Math.max(v.rStart, Math.min(v.rEnd, f)) - 0.5) / fps(); } }   // 範囲を縮めたら今のフレームも中へ
@@ -6120,11 +6161,12 @@ If you want to offset all timestamps of a track such that the first one is zero,
     else if (k === 'n') addMotion();
     else if (k === 'f') fitView();
     else if (k === ' ') { e.preventDefault(); if (!e.repeat) { spaceDown = true; spaceUsed = false; if (has()) vp.classList.add('panning'); brushCur.style.display = 'none'; } }
-    else if (k === 'arrowleft') { e.preventDefault(); step(e.shiftKey ? -5 : -1); }
-    else if (k === 'arrowright') { e.preventDefault(); step(e.shiftKey ? 5 : 1); }
+    else if (k === 'arrowleft') { e.preventDefault(); step(e.shiftKey ? -5 : -1, true); }
+    else if (k === 'arrowright') { e.preventDefault(); step(e.shiftKey ? 5 : 1, true); }
     else if (k === 'arrowup') { e.preventDefault(); selectMotion(S.current - 1); }
     else if (k === 'arrowdown') { e.preventDefault(); selectMotion(S.current + 1); }
   });
+  window.addEventListener('keyup', (e) => { if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && scrub) scrubEnd(); });
   window.addEventListener('keyup', (e) => {
     if (e.key.toLowerCase() === 'k') { kDown = false; vp.classList.remove('kscrub'); }
     if (e.key === ' ' && spaceDown) {   // Space：ドラッグしなかったら再生／停止
