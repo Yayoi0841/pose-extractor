@@ -695,7 +695,8 @@
     <div class="rsrow">
       <div class="rgrp">
         <input id="minF" type="number" class="hidden" disabled>
-        <span class="rlab" title="再生する範囲（バーの端をドラッグでも変えられます）">再生範囲</span>
+        <span class="rlab" title="再生する範囲（バーの端をドラッグでも変えられます）
+Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Shift+\ ＝ 全体に戻す">再生範囲</span>
         <input id="rStart" type="number" title="再生範囲の始まり">
         <div id="rs"><div id="rsBar"><div class="rsh" data-h="l"></div><span id="rsTxt"></span><div class="rsh" data-h="r"></div></div></div>
         <input id="rEnd" type="number" title="再生範囲の終わり">
@@ -973,6 +974,7 @@
     <tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>コピーした画像をサブ資料として置く（全コマ共通・画面の外にも置ける）</td></tr>
     <tr><td>選択（<kbd>V</kbd>）で画像をドラッグ</td><td>移動。角をドラッグで拡大縮小（<kbd>Shift</kbd>で縦横比を変える）、<kbd>Delete</kbd>で削除、<kbd>Ctrl</kbd>+<kbd>Z</kbd>で戻す</td></tr>
     <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>ブラシを細く／太く</td></tr>
+    <tr><td><kbd>Shift</kbd>+<kbd>[</kbd> / <kbd>Shift</kbd>+<kbd>]</kbd></td><td>再生範囲の始まり／終わりを今のフレームに（<kbd>Shift</kbd>+<kbd>\</kbd> で全体に戻す）</td></tr>
     <tr><td><kbd>Shift</kbd>＋クリック</td><td>前の点から直線を引く</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>元に戻す</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd></td><td>やり直し</td></tr>
@@ -4501,6 +4503,15 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   $('#rStart').onchange = () => { const v = V(); if (!has()) return; v.rStart = Number($('#rStart').value) || 1; if (v.rStart > v.rEnd) v.rEnd = v.rStart; syncUI(); save(); };
   $('#rEnd').onchange = () => { const v = V(); if (!has()) return; v.rEnd = Number($('#rEnd').value) || total(); if (v.rEnd < v.rStart) v.rStart = v.rEnd; syncUI(); save(); };
+  // ショートカットで再生範囲を決める（Shift+[ ＝ 今のフレームから、Shift+] ＝ 今のフレームまで、Shift+\ ＝ 全体に戻す）
+  function setRangeAt(which) {
+    const v = V(); if (!has()) return;
+    const f = frame();
+    if (which === 'in') { v.rStart = f; if (v.rEnd < f) v.rEnd = total(); }
+    else if (which === 'out') { v.rEnd = f; if (v.rStart > f) v.rStart = 1; }
+    else { v.rStart = 1; v.rEnd = total(); }
+    syncUI(); save(); say(`再生範囲：${v.rStart} - ${v.rEnd}`);
+  }
   let rsDrag;
   dragOn(rsBar, (e) => {
     if (!has()) return false;
@@ -6078,6 +6089,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
     else if (e.shiftKey && code === 'Period') stepFB(1);
     else if (code === 'Comma') stepKey(-1);
     else if (code === 'Period') stepKey(1);
+    else if (e.shiftKey && !e.altKey && code === 'BracketLeft') { e.preventDefault(); setRangeAt('in'); }
+    else if (e.shiftKey && !e.altKey && code === 'BracketRight') { e.preventDefault(); setRangeAt('out'); }
+    else if (e.shiftKey && !e.altKey && (code === 'Backslash' || code === 'IntlRo' || code === 'IntlYen')) { e.preventDefault(); setRangeAt('all'); }
     else if (code === 'BracketLeft') sizeStep(-1);
     else if (code === 'BracketRight') sizeStep(1);
     else if (k === 'escape' && (picking || tracking)) { cancelPick(); }
