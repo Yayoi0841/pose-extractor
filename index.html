@@ -466,7 +466,7 @@
   #memoOv { border-radius: 4px; }
   #drop { color: #ccc; border: 1.5px dashed #5a5a5a; border-radius: 12px; }
   #drop #dropText span { color: #999 !important; }
-  #drop button { color: #eee; background: #4a4a4a; height: 26px; padding: 0 12px; } #drop button:hover { background: #5a5a5a; } #drop #pick { background: var(--hl); color: #fff; }
+  #drop button { color: #eee; background: #4a4a4a; height: 26px; padding: 0 12px; } #drop button:hover { background: #5a5a5a; } #drop #pick { background: var(--hl); color: #fff; } #drop #pickTemp { background: #6b4a1f; color: #ffd9a0; } #drop #pickTemp:hover { background: #8a5f27; }
   body.cvLight #drop { color: #555; border-color: #a8a8a8; } body.cvLight #drop #dropText span { color: #777 !important; }
   /* 文字ツール */
   body.texting #viewport, body.texting #viewport #draw { cursor: text; }
@@ -654,7 +654,7 @@
     <button id="focusExit" title="元の画面に戻す (Shift+Y)">⤡ 元に戻す</button>
     <div id="drop">
       <div id="dropText">動画・画像をここにドラッグ＆ドロップ（複数まとめてOK）<br><span style="color:#aaa">MP4 / WebM / PNG / JPG</span></div>
-      <div style="display:flex;gap:6px"><button id="pick">ファイルを選ぶ</button><button id="libOpen" title="前に使った動画（このブラウザに保存済み）から選ぶ">保存済みの動画から</button></div>
+      <div style="display:flex;gap:6px"><button id="pick">ファイルを選ぶ</button><button id="libOpen" title="前に使った動画（このブラウザに保存済み）から選ぶ">保存済みの動画から</button><button id="pickTemp" title="保存しない一時作業として動画を開く（ちょっと見るだけのときに。閉じると全部消えます）">🕶 一時作業で開く</button></div>
       <div id="recentBox" class="hidden"></div>
     </div>
   </main>
@@ -3232,7 +3232,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const on = !rs.every(r => r.pin); rs.forEach(r => r.pin = on || undefined);
     await saveIdx(); renderRecent(); say(on ? '★ を付けました（上に固定・自動で消えません）' : '★ を外しました');
   }
-  function xNewMenu(x, y) { ctxMenu(x, y, [['📁 フォルダー', xNewFolder], ['🎬 新しい作業' + (xCurF() ? '（このフォルダーに保存）' : ''), xNewWork]]); }
+  function xNewMenu(x, y) { ctxMenu(x, y, [['📁 フォルダー', xNewFolder], ['🎬 新しい作業' + (xCurF() ? '（このフォルダーに保存）' : ''), xNewWork], ['🕶 一時作業（保存しない）', () => { $('#recentDlg').classList.add('hidden'); startTemp(); }]]); }
   async function togglePin(id) { const r = recentIdx.find(x => x.id === id); if (!r) return; r.pin = !r.pin || undefined; await saveIdx(); renderRecent(); say(r.pin ? '★ を付けました（自動で消えなくなります）' : '★ を外しました'); }
   async function moveTo(id, f) {
     const r = recentIdx.find(x => x.id === id); if (!r) return;
@@ -4053,6 +4053,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     } else if (fs.length) addFiles(fs);
   });
   $('#pick').onclick = () => fileIn.click();
+  $('#pickTemp').onclick = () => { fileIn.click(); startTemp(); };   // ファイル選択はクリックの直後に出す必要があるので先に開く
   $('#vAdd').onclick = (e) => { $('#libPop').dataset.anchor = 'panel'; openLib(e.currentTarget); };
   $('#libOpen').onclick = (e) => { $('#libPop').dataset.anchor = 'drop'; openLib(e.currentTarget); };
 
