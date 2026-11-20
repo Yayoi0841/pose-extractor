@@ -797,7 +797,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <p>動画から<b>タメ</b>と<b>ヒット</b>のポーズを抜き出して、パワポにするツールです。</p>
 <ol class="steps">
 <li><b>動画を入れる</b>：画面にドラッグ</li>
-<li><b>探す</b>：<kbd>Alt</kbd>+<kbd>V</kbd> 再生／<kbd>←</kbd><kbd>→</kbd> 1コマ</li>
+<li><b>探す</b>：<kbd>Alt</kbd>+<kbd>V</kbd>（選択ツールのときは <kbd>Space</kbd> も）再生／<kbd>←</kbd><kbd>→</kbd> 1コマ</li>
 <li><b>登録</b>：<kbd>1</kbd> タメ／<kbd>2</kbd> ヒット</li>
 <li><b>次へ</b>：<kbd>N</kbd> 次のモーション</li>
 <li><b>書き出す</b>：「ファイル → パワポを書き出す」</li>
@@ -838,7 +838,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <section data-t="再生 タイムスライダー 範囲 速度 スロー fps">
 <h2>再生</h2>
 <ul>
-<li><kbd>Alt</kbd>+<kbd>V</kbd> 再生／停止</li>
+<li><kbd>Alt</kbd>+<kbd>V</kbd> 再生／停止（選択ツール <kbd>V</kbd> のときは <kbd>Space</kbd> でも。ペン・消しゴム・文字のときは Space で再生しません）</li>
 <li><kbd>←</kbd><kbd>→</kbd> 1コマ（<kbd>Shift</kbd>で5コマ）</li>
 <li><kbd>K</kbd>＋ドラッグ：スクラブ</li>
 <li><b>範囲</b>：タイムスライダー下のバーの端をドラッグ</li>
@@ -1036,7 +1036,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
     <tr><td>ブラシの「硬さ」</td><td>下げるとふちがぼける（Photoshopの硬さと同じ）</td></tr>
     <tr class="h"><td colspan="2">画面の拡大・移動（Photoshop / Maya）</td></tr>
     <tr><td>マウスホイール</td><td>カーソル位置を中心に拡大・縮小</td></tr>
-    <tr><td><kbd>Space</kbd>＋ドラッグ / 中ボタンドラッグ</td><td>画面を移動（Space だけでは再生しません）</td></tr>
+    <tr><td><kbd>Space</kbd>＋ドラッグ / 中ボタンドラッグ</td><td>画面を移動（選択ツール <kbd>V</kbd> のときは <kbd>Space</kbd> を短く押すと再生／停止。ペンなどのときは再生しません）</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>Ctrl</kbd>+<kbd>-</kbd></td><td>拡大／縮小</td></tr>
     <tr><td><kbd>F</kbd> / <kbd>Ctrl</kbd>+<kbd>0</kbd></td><td>画面に合わせる</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>1</kbd></td><td>動画の実寸（100%）</td></tr>
@@ -4810,7 +4810,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }, { passive: false });
   $('#zIn').onclick = () => zoomStep(1); $('#zOut').onclick = () => zoomStep(-1); $('#zPct').onclick = fitView; $('#z100').onclick = zoom100;
   // Space＋ドラッグ／中ボタンドラッグで移動
-  let spaceDown = false, spaceUsed = false, pan = null, zd = null;
+  let spaceT = 0, spaceDown = false, spaceUsed = false, pan = null, zd = null;
   function zoomCur(e) {
     const z = spaceDown && (e.ctrlKey || e.metaKey);
     vp.classList.toggle('zin', z && !e.altKey); vp.classList.toggle('zout', z && e.altKey);
@@ -6728,7 +6728,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     else if (k === '2') capture('hit');
     else if (k === 'n') addMotion();
     else if (k === 'f') fitView();
-    else if (k === ' ') { e.preventDefault(); if (!e.repeat) { spaceDown = true; spaceUsed = false; if (has()) vp.classList.add('panning'); brushCur.style.display = 'none'; } }
+    else if (k === ' ') { e.preventDefault(); if (!e.repeat) { spaceDown = true; spaceUsed = false; spaceT = performance.now(); if (has()) vp.classList.add('panning'); brushCur.style.display = 'none'; } }
     else if (k === 'arrowleft') { e.preventDefault(); step(e.shiftKey ? -5 : -1, true); }
     else if (k === 'arrowright') { e.preventDefault(); step(e.shiftKey ? 5 : 1, true); }
     else if (k === 'arrowup') { e.preventDefault(); selectMotion(S.current - 1); }
@@ -6737,8 +6737,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
   window.addEventListener('keyup', (e) => { if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && scrub) scrubEnd(); });
   window.addEventListener('keyup', (e) => {
     if (e.key.toLowerCase() === 'k') { kDown = false; vp.classList.remove('kscrub'); }
-    if (e.key === ' ' && spaceDown) {   // Space は画面の移動専用（再生は Alt+V。ペンで画面を動かすときに誤って再生しないように）
+    if (e.key === ' ' && spaceDown) {   // Space：選択ツール（V）のときだけ、短く押したら再生／停止。ペン・消しゴム・文字などでは画面の移動専用（描くときに誤って再生しない）
       spaceDown = false; if (!pan) vp.classList.remove('panning');
+      if (S.tool === 'select' && !spaceUsed && performance.now() - spaceT < 350 && !e.target.matches('input, select, textarea')) togglePlay();
     }
     zoomCur(e);
   });
