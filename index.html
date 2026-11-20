@@ -286,6 +286,7 @@
   .fbrow .chk:hover { border-color: #fff; background: #555; }
   .fbrow.done .chk { background: var(--hl); border-color: var(--hl); }
   .fbrow.done .ft { color: var(--sub); text-decoration: line-through; }
+  .fbTextBtn { margin: 4px 8px 0; height: 26px; background: #3a3a3a; color: #ddd; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; } .fbTextBtn:hover { background: #4b4b4b; color: #fff; }
   .fbDoneH { padding: 6px 8px; color: var(--sub); cursor: pointer; border-bottom: 1px solid var(--line); user-select: none; }
   .fbDoneH:hover { color: #fff; background: #4b4b4b; }
   .fbrow:hover .x { visibility: visible; }
@@ -523,6 +524,7 @@
         <button data-act="openProject">プロジェクトを開く…</button>
         <hr>
         <button data-act="exportPptx">パワポを書き出す (.pptx)</button>
+        <button data-act="fbText">今までのFBを文字でまとめる（コピー・.txt）…</button>
         <button data-act="exportFb">FBを渡す用に書き出す（画像＋文字）…</button>
         <button data-act="exportFrame">今のフレームを画像で保存 (.png)<span>Ctrl+Shift+S</span></button>
         <button data-act="exportSel">選んだ資料を1枚の画像で保存 (.png)<span>Ctrl+Shift+E</span></button>
@@ -712,6 +714,7 @@
         <label title="ひとつ前の回のメモを灰色で表示"><input type="checkbox" id="fbPrev"> 前回を薄く</label>
         <button class="mini" id="fbDel" title="この回のFBを削除">🗑</button>
       </div>
+      <button id="fbText" class="fbTextBtn" title="今までのFBを、回・動画・フレームごとに並べた文字にしてコピー（メモ帳などに貼れる）">📋 今までのFBを文字でまとめる（コピー）</button>
       <div class="memoBox">
         <div class="mt"><b id="memoTitle">フレームメモ</b><span style="flex:1"></span><span>M で入力 / Esc で戻る</span></div>
         <div id="memoPrev" class="hidden"></div>
@@ -5993,6 +5996,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     library: () => { $('#libPop').dataset.anchor = 'menu'; openLib($('#menuFile')); },
     exportFrame: () => exportFrame().catch(err => say('画像を保存できませんでした：' + err.message)),
     subWin: () => openSubWin(),
+    fbText: () => fbTextDlg(),
     exportFb: () => exportFb().catch(err => say('FBを書き出せませんでした：' + err.message)),
     exportSel: () => exportSel().catch(err => say('画像を保存できませんでした：' + err.message)),
     storeVideos: () => toggleStoreVideos(),
@@ -6373,6 +6377,58 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const fn = `${nm}_資料${picked ? '_選択' : ''}.png`;
     if (await saveFile(fn, blob)) say(`${items.length}個を1枚の画像で保存しました：${fn}（${W}×${H}px）`);
   }
+
+  // ================= 今までのFBを文字でまとめる（メモ帳に貼れる形。回＝いつ、動画、フレーム・秒、完了かどうか） =================
+  function fbTextBuild(allR, withDone) {
+    const L = [], line = '━━━━━━━━━━━━━━━━━━━━';
+    const d = new Date(), stamp = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const nm = S.name || V()?.name.replace(/\.[^.]+$/, '') || '（無題）';
+    L.push(`■ ${nm}　FBまとめ`, `まとめた日時：${stamp}`, '');
+    const rounds = S.fb ? S.fb.rounds.filter(r => allR || r.id === S.fb.cur) : [{ id: 0, name: 'FB', at: '' }];
+    let total = 0;
+    rounds.slice().reverse().forEach(r => {   // 新しい回を上に
+      const notes = !S.fb || r.id === S.fb.cur ? S.notes : (S.fb.store[r.id] || {});
+      const body = [];
+      S.videos.forEach(v => {
+        const o = notes[v.id]; if (!o) return;
+        const fs = Object.keys(o).map(Number).filter(f => f > 0 && o[f]).sort((a, b) => a - b);
+        const rows = [];
+        fs.forEach(f => {
+          const n = o[f], fp = v.fps || 30, tm = `F${f}（${((f - 1) / fp).toFixed(2)}秒）`;
+          const txts = (n.strokes || []).filter(s => s.t === 'x').map(s => s.txt.replace(/\n/g, ' ')).join('／');
+          const todo = n.memo || ((n.strokes || []).length && !n.done ? (txts ? `（画面の文字）${txts}` : '（ペンのみ）') : '');
+          if (todo) rows.push(`□ ${tm}\n${String(todo).split('\n').map(t => '　' + t).join('\n')}`);
+          if (withDone && n.done) rows.push(`☑ ${tm}［完了］\n${String(n.dmemo || (txts ? `（画面の文字）${txts}` : '（ペンのみ）')).split('\n').map(t => '　' + t).join('\n')}`);
+        });
+        if (rows.length) { body.push(`▼ ${v.name}（${v.fps || 30}fps）`, ...rows, ''); total += rows.length; }
+      });
+      L.push(line, `${r.name}${r.at ? '（' + r.at + '）' : ''}${S.fb && r.id === S.fb.cur ? '　← 今の回' : ''}`, line);
+      L.push(...(body.length ? body : ['（FBなし）', '']));
+    });
+    L.push('□＝未完了　☑＝完了　F＝フレーム番号（秒は動画の先頭から）');
+    return { text: L.join('\n'), total };
+  }
+  async function fbTextDlg() {
+    if (!S.videos.length) { say('先に動画を追加してください'); return; }
+    const q = ask('', '今までのFBを文字でまとめる', false, true);
+    const mt = $('#modalText');
+    mt.innerHTML = `<label><input type="checkbox" id="fbtAll" checked> 前の回のFBも入れる</label>　<label><input type="checkbox" id="fbtDone" checked> 完了済みも入れる</label>
+      <textarea id="fbtOut" readonly style="display:block;width:100%;box-sizing:border-box;height:46vh;margin-top:8px;font:12px/1.6 'Yu Gothic UI',Meiryo,monospace;background:#1e1e1e;color:#eee;border:1px solid #555;padding:8px;white-space:pre;overflow:auto"></textarea>
+      <div style="margin-top:8px;display:flex;gap:6px"><button id="fbtCopy" style="background:var(--hl);color:#fff;padding:0 14px;height:28px">📋 コピー</button><button id="fbtSave" style="height:28px;padding:0 12px">💾 .txt で保存</button><span id="fbtInfo" style="color:var(--sub);align-self:center"></span></div>`;
+    const upd = () => { const r = fbTextBuild($('#fbtAll').checked, $('#fbtDone').checked); $('#fbtOut').value = r.text; $('#fbtInfo').textContent = `${r.total}件`; };
+    $('#fbtAll').onchange = upd; $('#fbtDone').onchange = upd; upd();
+    $('#fbtCopy').onclick = async () => {
+      const t = $('#fbtOut').value;
+      try { await navigator.clipboard.writeText(t); } catch { const ta = $('#fbtOut'); ta.focus(); ta.select(); try { document.execCommand('copy'); } catch {} }
+      $('#fbtInfo').textContent = 'コピーしました。メモ帳に貼り付け（Ctrl+V）できます'; say('FBのまとめをコピーしました');
+    };
+    $('#fbtSave').onclick = async () => {
+      const nm = (S.name || V()?.name.replace(/\.[^.]+$/, '') || 'FB').replace(/[\\/:*?"<>|]/g, '_').slice(0, 50);
+      await saveFile(`${nm}_FBまとめ.txt`, new Blob(['\ufeff' + $('#fbtOut').value.replace(/\n/g, '\r\n')], { type: 'text/plain' }));
+    };
+    await q;
+  }
+  $('#fbText').onclick = () => fbTextDlg();
 
   // ================= FBを渡す用に書き出す（このツールを使っていない人向け：画像とFBの文字をセットで） =================
   function drawFbLayers(bx, nt, W, H) {   // ペン・文字・貼った画像を、レイヤーごとに合成（画面と同じ見え方）
