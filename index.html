@@ -117,6 +117,8 @@
   .sw { width: 16px; height: 16px; border-radius: 2px; border: 1px solid #222; padding: 0; }
   .sw.on { outline: 2px solid #fff; outline-offset: 1px; }
   #penColor { width: 26px; height: 22px; padding: 0; border: 1px solid #222; background: none; }
+  .val { cursor: text; border-radius: 2px; } .val:hover { background: #3a3a3a; outline: 1px solid #555; }
+  input.valEd { width: 52px; height: 18px; padding: 0 3px; font-size: 11px; text-align: right; background: #1b1b1b; color: var(--text); border: 1px solid var(--hl); border-radius: 2px; }
   .val { min-width: 34px; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
 
   /* 動画パネル */
@@ -640,7 +642,7 @@
         <input id="penColor" type="color" value="#ff3b30" title="色を選ぶ">
       </span>
       <span class="sep"></span>
-      <label title="ブラシサイズ（動画のピクセル） [ ]で増減">直径 <input id="penSize" type="range" min="1" max="300" value="6"><span class="val" id="penSizeV">6px</span></label>
+      <label title="ブラシサイズ（動画のピクセル） [ ]で増減">直径 <input id="penSize" type="range" min="0.5" max="300" step="0.1" value="6"><span class="val" id="penSizeV">6px</span></label>
       <label id="opLbl" title="不透明度">不透明度 <input id="penOp" type="range" min="5" max="100" value="100"><span class="val" id="penOpV">100%</span></label>
       <label id="penPrL" title="ペンタブの筆圧で太さを変える（ペンで描くと自動で検出）"><input id="penPr" type="checkbox" checked><span id="penPrT">筆圧</span></label>
       <label id="penPoL" title="筆圧で濃さ（不透明度）も変える"><input id="penPo" type="checkbox">濃さも</label>
@@ -5564,7 +5566,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     $('#penColor').value = S.pen.color;
     $$('.sw').forEach(b => b.classList.toggle('on', b.dataset.c.toLowerCase() === S.pen.color.toLowerCase()));
   }
-  const setSize = (v) => { v = Math.max(1, Math.min(300, Math.round(v))); if (S.tool === 'eraser') S.eraser.size = v; else S.pen.size = v; syncPenUI(); save(); };
+  const setSize = (v) => { if (!isFinite(v)) return; v = Math.max(0.5, Math.min(300, Math.round(v * 10) / 10)); if (S.tool === 'eraser') S.eraser.size = v; else S.pen.size = v; syncPenUI(); save(); };
   $('#penSize').oninput = () => setSize(Number($('#penSize').value));
   $('#penOp').oninput = () => { S.pen.opacity = Number($('#penOp').value); syncPenUI(); save(); };
   $('#penPr').onchange = () => { S.pen.pressure = $('#penPr').checked; save(); };
@@ -5572,7 +5574,27 @@ If you want to offset all timestamps of a track such that the first one is zero,
   $('#penSm').oninput = () => { S.pen.smooth = Number($('#penSm').value); syncPenUI(); save(); };
   $('#penColor').oninput = () => { S.pen.color = $('#penColor').value; syncPenUI(); save(); };
   $$('.sw').forEach(b => b.onclick = () => { S.pen.color = b.dataset.c; syncPenUI(); save(); });
-  const sizeStep = (d) => { if (S.tool === 'text') { const v = S.text.size; txtSizeSet(v + d * (v < 40 ? 2 : v < 100 ? 6 : 12)); return; } const s = curSize(), st = s < 10 ? 1 : s < 50 ? 5 : 10; setSize(s + d * st); };
+  // スライダー横の数字をクリック → 数字を打って決められる（Enter で決定 / Esc でやめる / ↑↓で少しずつ）
+  document.addEventListener('click', (e) => {
+    const sp = e.target.closest?.('span.val'); if (!sp || !sp.id || !sp.id.endsWith('V')) return;
+    const r = document.getElementById(sp.id.slice(0, -1)); if (!r || r.type !== 'range' || r.disabled) return;
+    e.preventDefault(); e.stopPropagation();
+    const unit = (sp.textContent.match(/[^\d.\-\s]+$/) || [''])[0];
+    const inp = document.createElement('input'); inp.type = 'number'; inp.className = 'valEd';
+    inp.min = r.min; inp.max = r.max; inp.step = r.step && r.step !== 'any' ? r.step : 1; inp.value = parseFloat(sp.textContent) || r.value;
+    inp.title = `${r.min}〜${r.max}${unit}（Enterで決定）`;
+    sp.style.display = 'none'; sp.after(inp); inp.focus(); inp.select();
+    let done = false;
+    const fin = (ok) => {
+      if (done) return; done = true;
+      const v = parseFloat(inp.value);
+      inp.remove(); sp.style.display = '';
+      if (ok && isFinite(v)) { r.value = String(Math.max(+r.min, Math.min(+r.max, v))); r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true })); }
+    };
+    inp.onkeydown = (k) => { k.stopPropagation(); if (k.key === 'Enter') { fin(true); r.blur(); } else if (k.key === 'Escape') fin(false); };
+    inp.onblur = () => fin(true);
+  }, true);
+  const sizeStep = (d) => { if (S.tool === 'text') { const v = S.text.size; txtSizeSet(v + d * (v < 40 ? 2 : v < 100 ? 6 : 12)); return; } const s = curSize(), st = s < 2 ? 0.5 : s < 10 ? 1 : s < 50 ? 5 : 10; setSize(s + d * st); };
   $('#penHd').oninput = () => { const v = Number($('#penHd').value); if (S.tool === 'eraser') S.eraser.hard = v; else S.pen.hard = v; syncPenUI(); save(); };
 
   // ---- レイヤー操作 ----
