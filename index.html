@@ -906,7 +906,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <li><b>リンクだけ書き出す</b>：「ファイル → 参考リンクだけ書き出す」。動画ごとに名前とURLを並べて、コピーか .txt で保存</li>
 <li><b>画像の切り取り</b>：画像を右クリック →「✂ 画像を切り取る」→ 残したい範囲をドラッグ。元の解像度のまま。「元の画像は残す」にチェックで別の画像として置く</li>
 <li><kbd>V</kbd> でドラッグ移動・角で拡大縮小。<b>画面の外にも置ける</b>（ホイールで縮小すると見やすい）</li>
-<li><b>サブ動画はいくつでも置ける</b>。<b>クリックでその動画だけ再生／停止</b>（ほかのサブ動画は止まるので重くならない）。左の一覧の ▶ でも同じ</li>
+<li><b>サブ動画はいくつでも置ける</b>。<b>動画の上でダブルクリックすると、その動画だけ再生／停止</b>（ほかのサブ動画は止まるので重くならない）。左の一覧の ▶ でも同じ</li>
 <li>選んだサブ動画の下のバー：<b>◀| |▶ で1コマずつ</b>（Shift+クリックで5コマ）・スライダーもコマ単位・「F 12 / 72」で今のコマ・🔗同期（オンにするとメインと一緒に再生）</li>
 <li><kbd>Delete</kbd> で外す／<kbd>Ctrl</kbd>+<kbd>Z</kbd> で戻す</li>
 <li><b>レイヤー</b>：左の一覧で動画の下に並ぶ。👁 で表示切替・ドラッグで重なり順・ダブルクリックで名前</li>
@@ -5470,8 +5470,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       paintDrawing(true); return;
     }
     const { st, a } = xf, b = { x: st.x, y: st.y, w: st.w, h: st.h }; if (st.t === 'x') b.s = st.s;
-    const tap = xf.mode === 'move' && performance.now() - xf.t0 < 350; xf = null;
-    if (tap && st.b && st.t === 'v' && a.x === b.x && a.y === b.y) subPlay(st);   // サブ動画はクリックで再生／停止（ほかのサブ動画は止める）
+    xf = null;
     if (a.x !== b.x || a.y !== b.y || a.w !== b.w || a.h !== b.h) {
       undoStack.push({ vid: S.cur, f: frame(), op: 'xf', st, a, b }); redoStack.length = 0; fbChanged();
     }
@@ -6041,6 +6040,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const [x, y] = toNorm(e), hit = picAt(x, y);
     if (hit?.t === 'x' && !hit.b) { sel = { vid: S.cur, f: txtOwner(hit), st: hit }; startText(hit, false); return; }   // 文字はダブルクリックで直す
     if (hit?.t === 'l') { openLink(hit.url); return; }   // リンクはダブルクリックで開く
+    if (hit?.b && hit.t === 'v') { subPlay(hit); return; }   // サブ動画はダブルクリックで再生／停止（ほかのサブ動画は止める）
     toggleFocus();
   });
   $('#mFull').onclick = async () => {
@@ -7689,14 +7689,14 @@ If you want to offset all timestamps of a track such that the first one is zero,
     boardOf().forEach(it => { if (it !== st && it.t === 'v') { const o = bEls.get(it.id); if (o?.tagName === 'VIDEO' && !o.paused && (it.sync === false || video.paused)) o.pause(); } });
     el.playbackRate = Math.max(0.0625, video.playbackRate || 1);
     el.play().catch(() => {}); syncBctl();
-    say(`▶ 「${bName(st, 0)}」を再生中（もう一度クリックで停止）`);
+    say(`▶ 「${bName(st, 0)}」を再生中（もう一度ダブルクリックで停止）`);
   }
   function placeSubVideo(id) {
     if (!has()) { say('先にベースの動画を開いてください'); return; }
     const sv = S.videos.find(v => v.id === id); if (!sv) return;
     if (id === S.cur) { say('ベースの動画と同じ動画です。ほかの動画を選んでください'); return; }
     const w = 0.45, p = boardSpot(w, w * 9 / 16 * (rect.w / rect.h));
-    addBoardItem({ b: true, t: 'v', id: bid(), v: id, x: p.x, y: p.y, w, h: null, sync: false }, `サブ動画「${sv.name}」を置きました。クリックで再生／停止・ドラッグで移動・角で拡大縮小（画面の外にも置けます）`);
+    addBoardItem({ b: true, t: 'v', id: bid(), v: id, x: p.x, y: p.y, w, h: null, sync: false }, `サブ動画「${sv.name}」を置きました。ダブルクリックで再生／停止・ドラッグで移動・角で拡大縮小（画面の外にも置けます）`);
   }
   async function placeBoardImages(files) {
     let n = 0, last = null;
