@@ -189,9 +189,11 @@
   .bitem.blink b { font-size: 1em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bitem.blink span { font-size: .72em; color: #9fd0ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bitem.boff { display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; color: #ccc; font-size: 12px; background: #333; }
-  #bctl { position: absolute; z-index: 8; display: flex; gap: 4px; align-items: center; background: rgba(28,28,28,.92); border: 1px solid #555; padding: 3px 6px; border-radius: 3px; }
+  #bctl { position: absolute; z-index: 8; }
   #bctl.hidden { display: none; }
-  #bctl input { flex: 1; min-width: 80px; }
+  #bcTs { display: block; width: 100%; height: 26px; background: #f4f4f4; border: 1px solid #bbb; border-radius: 2px; cursor: ew-resize; touch-action: none; }
+  #bcRow { position: absolute; left: 0; top: 30px; display: flex; gap: 4px; align-items: center; white-space: nowrap; background: rgba(28,28,28,.92); border: 1px solid #555; padding: 3px 6px; border-radius: 6px; }
+  #bcF { min-width: 64px; text-align: center; font-size: 11px; color: #ddd; font-variant-numeric: tabular-nums; }
   #bctl button { height: 22px; padding: 0 8px; }
   #bctl .tg.on { background: var(--hl); color: #fff; }
   #anno { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; }
@@ -501,7 +503,7 @@
   #vpLabel:empty, #vpHud:empty { display: none; }
   #vpZoom { border-radius: 6px; background: rgba(28,28,28,.82); padding: 2px; }
   #vpZoom button { border-radius: 4px; }
-  #ovPanel, #bctl { border-radius: 8px; }
+  #ovPanel { border-radius: 8px; }
   #memoOv { border-radius: 4px; }
   #drop { color: #ccc; border: 1.5px dashed #5a5a5a; border-radius: 12px; }
   #drop #dropText span { color: #999 !important; }
@@ -680,7 +682,7 @@
     <video id="gvid" playsinline muted class="hidden"></video>
     <canvas id="draw"></canvas>
     <canvas id="anno"></canvas>
-    <div id="bctl" class="hidden"><button id="bcPlay" title="このサブ動画だけ再生／停止">▶</button><button id="bcPrev" title="1コマ戻る（Shift+クリックで5コマ）">◀|</button><button id="bcNext" title="1コマ進む（Shift+クリックで5コマ）">|▶</button><input id="bcSeek" type="range" min="0" max="1000" step="1" value="0" title="このサブ動画の位置（コマ単位）"><span id="bcF" style="min-width:70px;text-align:right;font-size:11px;color:#ccc;font-variant-numeric:tabular-nums"></span><button id="bcSync" class="tg" title="メインと一緒に再生・停止する">🔗 同期</button><button id="bcFront" title="いちばん前へ">前へ</button><button id="bcBack" title="いちばん後ろへ">後ろへ</button></div>
+    <div id="bctl" class="hidden"><canvas id="bcTs" title="サブ動画のタイムスライダー（クリック・ドラッグでコマを選ぶ）"></canvas><div id="bcRow"><button id="bcPlay" title="このサブ動画だけ再生／停止">▶</button><button id="bcPrev" title="1コマ戻る（Shift+クリックで5コマ）">◀|</button><button id="bcNext" title="1コマ進む（Shift+クリックで5コマ）">|▶</button><span id="bcF"></span><button id="bcSync" class="tg" title="メインと一緒に再生・停止する">🔗 同期</button><button id="bcFront" title="いちばん前へ">前へ</button><button id="bcBack" title="いちばん後ろへ">後ろへ</button></div></div>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="lumA" color-interpolation-filters="sRGB"><feColorMatrix type="luminanceToAlpha"/></filter></svg>
     <div id="brushCur"></div>
     <textarea id="txtEd" class="hidden" spellcheck="false" wrap="off"></textarea>
@@ -907,7 +909,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <li><b>画像の切り取り</b>：画像を右クリック →「✂ 画像を切り取る」→ 残したい範囲をドラッグ。元の解像度のまま。「元の画像は残す」にチェックで別の画像として置く</li>
 <li><kbd>V</kbd> でドラッグ移動・角で拡大縮小。<b>画面の外にも置ける</b>（ホイールで縮小すると見やすい）</li>
 <li><b>サブ動画はいくつでも置ける</b>。<b>動画の上でダブルクリックすると、その動画だけ再生／停止</b>（ほかのサブ動画は止まるので重くならない）。左の一覧の ▶ でも同じ</li>
-<li>選んだサブ動画の下のバー：<b>◀| |▶ で1コマずつ</b>（Shift+クリックで5コマ）・スライダーもコマ単位・「F 12 / 72」で今のコマ・🔗同期（オンにするとメインと一緒に再生）</li>
+<li>選んだサブ動画の下のバー：<b>◀| |▶ で1コマずつ</b>（Shift+クリックで5コマ）・動画の真下の白いタイムスライダーをクリック／ドラッグ／ホイールでコマ移動・「F 12 / 72」で今のコマ・🔗同期（オンにするとメインと一緒に再生）</li>
 <li><kbd>Delete</kbd> で外す／<kbd>Ctrl</kbd>+<kbd>Z</kbd> で戻す</li>
 <li><b>レイヤー</b>：左の一覧で動画の下に並ぶ。👁 で表示切替・ドラッグで重なり順・ダブルクリックで名前</li>
 <li>動画の「▼ 資料N」でレイヤーをしまう／出す（しまっても画面からは消えません）</li>
@@ -7527,19 +7529,45 @@ If you want to offset all timestamps of a track such that the first one is zero,
     vList.querySelectorAll('.brow').forEach(r => r.classList.toggle('on', !!sel && r.dataset.id === sel.st?.id));
   }
   // 選んでいるサブ動画の操作バー（再生／止める・位置・メインと一緒に再生・前後の入れ替え）
+  // サブ動画のタイムスライダー（メインと同じ見た目・白背景）。目盛り＝コマ、赤い線＝今のコマ
+  let bcRaf = 0;
+  function drawBcTs(cf, nF) {
+    const cv = $('#bcTs'), w = cv.clientWidth, h = cv.clientHeight; if (!w) return;
+    const r = window.devicePixelRatio || 1; if (cv.width !== Math.round(w * r) || cv.height !== Math.round(h * r)) { cv.width = Math.round(w * r); cv.height = Math.round(h * r); }
+    const g = cv.getContext('2d'); g.setTransform(r, 0, 0, r, 0, 0); g.clearRect(0, 0, w, h);
+    const pad = 6, X = (f) => pad + (nF > 1 ? f / (nF - 1) : 0) * (w - 2 * pad), pf = (w - 2 * pad) / Math.max(1, nF - 1);
+    const lab = [1, 2, 5, 10, 20, 50, 100, 200, 500].find(n => n * pf >= 28) || 1000, tick = [1, 2, 5, 10, 50].find(n => n * pf >= 4) || 100;
+    g.font = '10px "Yu Gothic UI", Meiryo, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'top';
+    for (let f = 0; f < nF; f += tick) { const x = Math.round(X(f)) + .5, big = (f + 1) % lab === 0 || f === 0; g.strokeStyle = big ? '#888' : '#c4c4c4'; g.beginPath(); g.moveTo(x, h); g.lineTo(x, h - (big ? 9 : 5)); g.stroke(); }
+    g.fillStyle = '#555'; for (let f = lab - 1; f < nF; f += lab) { const x = X(f); if (Math.abs(x - X(cf)) > 16) g.fillText(f + 1, x, 2); }
+    const x = Math.round(X(cf));
+    g.fillStyle = 'rgba(226,58,58,.18)'; g.fillRect(x - Math.max(1, pf / 2), 0, Math.max(2, pf), h);
+    g.strokeStyle = '#e23a3a'; g.lineWidth = 2; g.beginPath(); g.moveTo(x, 12); g.lineTo(x, h); g.stroke(); g.lineWidth = 1;
+    g.fillStyle = '#e23a3a'; g.font = 'bold 10px "Yu Gothic UI", Meiryo, sans-serif'; g.fillText(cf + 1, Math.max(10, Math.min(w - 10, x)), 1);
+  }
+  { const cv = $('#bcTs'); let drag = false;
+    const at = (e) => { const el = selEl(), st = selSt(); if (!el?.duration || !st) return; const b = cv.getBoundingClientRect(), nF = Math.max(1, Math.round(el.duration * subFps(st))); subSeekF(Math.round((e.clientX - b.left - 6) / Math.max(1, b.width - 12) * (nF - 1))); };
+    cv.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); drag = true; cv.setPointerCapture(e.pointerId); at(e); });
+    cv.addEventListener('pointermove', e => { if (drag) at(e); });
+    cv.addEventListener('pointerup', () => { drag = false; });
+    cv.addEventListener('wheel', e => { e.preventDefault(); e.stopPropagation(); subSeekF(subCurF() + (e.deltaY > 0 ? 1 : -1)); }, { passive: false });
+  }
   function syncBctl() {
     const st = S.tool === 'select' ? selSt() : null, el = st?.b && st.t === 'v' ? bEls.get(st.id) : null;
     if (!el || el.tagName !== 'VIDEO') { bctl.classList.add('hidden'); return; }
     const c = corners(st);
     // 動画の見えている部分の真下にそろえる（画面の端からはみ出した分は縮める）
-    const W = vp.clientWidth, H = vp.clientHeight, l = Math.max(4, c[3][0]), r = Math.min(W - 4, c[2][0]), bw = Math.min(W - 8, Math.max(330, r - l));
-    bctl.style.width = bw + 'px'; bctl.style.left = Math.max(4, Math.min(W - 4 - bw, l)) + 'px';
-    bctl.style.top = Math.max(4, Math.min(H - 40, c[3][1] + 6)) + 'px';
+    const W = vp.clientWidth, H = vp.clientHeight, l = Math.max(0, c[3][0]), r = Math.min(W, c[2][0]), bw = Math.max(40, r - l);
+    if (r - l < 24 || c[3][1] < 0 || c[0][1] > H) { bctl.classList.add('hidden'); return; }   // 動画が画面の外なら出さない
+    bctl.style.width = bw + 'px'; bctl.style.left = Math.min(W - bw, l) + 'px';
+    bctl.style.top = Math.max(0, Math.min(H - 62, c[3][1] + 2)) + 'px';
     bctl.classList.remove('hidden');
+    const row = $('#bcRow'), bl = Math.min(W - bw, l); row.style.left = Math.max(-bl, Math.min(0, W - bl - row.offsetWidth)) + 'px';   // ボタンの列は画面からはみ出さないように
     $('#bcPlay').textContent = el.paused ? '▶' : '❚❚';
     $('#bcSync').classList.toggle('on', st.sync !== false);
     const fp = subFps(st), nF = el.duration ? Math.max(1, Math.round(el.duration * fp)) : 0;
-    if (nF) { $('#bcSeek').max = nF - 1; if (document.activeElement !== $('#bcSeek')) $('#bcSeek').value = Math.min(nF - 1, Math.floor(el.currentTime * fp + 1e-3)); $('#bcF').textContent = `F ${Math.min(nF, Math.floor(el.currentTime * fp + 1e-3) + 1)} / ${nF}`; }
+    if (nF) { const cf = Math.min(nF - 1, Math.floor(el.currentTime * fp + 1e-3)); $('#bcF').textContent = `F ${cf + 1} / ${nF}`; drawBcTs(cf, nF); }
+    if (!el.paused) { cancelAnimationFrame(bcRaf); bcRaf = requestAnimationFrame(syncBctl); }
   }
   const selEl = () => { const st = selSt(); return st?.b ? bEls.get(st.id) : null; };
   $('#bcPlay').onclick = () => { const el = selEl(); if (!el) return; if (el.paused) el.play().catch(() => {}); else el.pause(); setTimeout(syncBctl, 50); };
@@ -7548,10 +7576,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const el = selEl(), st = selSt(); if (!el?.duration || !st) return;
     const fp = subFps(st), nF = Math.max(1, Math.round(el.duration * fp)); n = Math.max(0, Math.min(nF - 1, n));
     el.pause(); el.currentTime = Math.min(el.duration - 1e-3, (n + 0.5) / fp); st.t0 = el.currentTime; save();
-    $('#bcSeek').value = n; $('#bcF').textContent = `F ${n + 1} / ${nF}`;
+    $('#bcF').textContent = `F ${n + 1} / ${nF}`; drawBcTs(n, nF);
   }
   const subCurF = () => { const el = selEl(); return el ? Math.floor(el.currentTime * subFps(selSt()) + 1e-3) : 0; };
-  $('#bcSeek').oninput = () => subSeekF(+$('#bcSeek').value);
   $('#bcPrev').onclick = (e) => subSeekF(subCurF() - (e.shiftKey ? 5 : 1));
   $('#bcNext').onclick = (e) => subSeekF(subCurF() + (e.shiftKey ? 5 : 1));
   $('#bcSync').onclick = () => { const st = selSt(); if (!st) return; st.sync = st.sync === false; save(); syncBctl(); say(st.sync ? 'メインと一緒に再生・停止します' : 'このサブ動画はメインとは別に動きます'); };
