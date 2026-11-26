@@ -158,6 +158,10 @@
   #viewport.picking, #viewport.picking * { cursor: crosshair !important; }
   .brow { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 30px; background: #2d2d2d; border-bottom: 1px solid #383838; font-size: 11px; color: #cfcfcf; cursor: pointer; user-select: none; position: relative; }
   .brow.in { padding-left: 44px; }
+  .bgrp { position: relative; display: flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px 0 22px; background: #262626; border-bottom: 1px solid #383838; font-size: 11px; font-weight: 600; color: #9fd0ff; cursor: pointer; user-select: none; }
+  .bgrp.in { padding-left: 36px; } .bgrp:hover { background: #333; }
+  .bgrp .be { width: 20px; height: 20px; min-width: 0; padding: 0; background: none; border: 0; font-size: 12px; color: #ddd; flex: none; }
+  .bgrp .bgn { flex: 1; } .bgrp .bgc { color: #888; font-weight: 400; }
   .brow::before { content: ''; position: absolute; left: 18px; top: 0; bottom: 0; border-left: 1px solid #555; }
   .brow.in::before { left: 32px; }
   .brow:hover { background: #3a3a3a; } .brow.on { background: #34506a; }
@@ -7451,16 +7455,17 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   // ---- 動画の一覧に、置いた資料をレイヤーとして並べる（上ほど前） ----
   const bName = (it, i) => it.name || (it.t === 'l' ? linkLabel(it.url) : it.t === 'v' ? (S.videos.find(v => v.id === it.v)?.name || 'サブ動画') : `画像 ${i + 1}`);
+  const bGrpClosed = new Set();   // たたんだ種類（動画ID|種類）
   function bRows(v) {
     const a = S.board?.[v.id]; if (!a?.length) return [];
     const imgN = new Map(); let n = 0; a.forEach(it => { if (it.t === 'i') { imgN.set(it, n++); if (!it.name) it.name = `画像 ${n}`; } });   // 名前は最初に決めたまま（並べ替えても変わらない）
-    return a.slice().reverse().map(it => {
+    const rows = a.slice().reverse().map(it => {
       const el = document.createElement('div');
       el.className = 'brow' + (v.g ? ' in' : '') + (it.hide ? ' off' : '') + (sel?.st === it ? ' on' : '');
       el.draggable = true; el.dataset.id = it.id; el.dataset.vid = v.id;
       el.title = 'クリックで選ぶ・ドラッグで重なり順・ダブルクリックで名前変更';
       const sv = it.t === 'v' ? S.videos.find(x => x.id === it.v) : null, th = it.t === 'i' ? pics.get(it.k)?.url : sv?.thumb;
-      el.innerHTML = `<button class="be" title="表示／非表示">${it.hide ? '—' : '👁'}</button>${th ? `<img class="bt" src="${esc(th)}" alt="">` : '<span class="bt"></span>'}<span class="bk">${it.t === 'v' ? '動画' : it.t === 'l' ? 'リンク' : '画像'}</span><span class="bn">${esc(bName(it, imgN.get(it) ?? 0))}</span><button class="mini bx" title="外す">×</button>`;
+      el.innerHTML = `<button class="be" title="表示／非表示">${it.hide ? '—' : '👁'}</button>${th ? `<img class="bt" src="${esc(th)}" alt="">` : it.t === 'l' ? '<span class="bt" style="display:inline-flex;align-items:center;justify-content:center;background:#22303d;font-size:11px">🔗</span>' : '<span class="bt"></span>'}<span class="bk">${it.t === 'v' ? '動画' : it.t === 'l' ? 'リンク' : '画像'}</span><span class="bn">${esc(bName(it, imgN.get(it) ?? 0))}</span><button class="mini bx" title="外す">×</button>`;
       if (it.t === 'i' && !th) pic(it.k).ready?.then(() => { const u = pics.get(it.k)?.url, im = el.querySelector('.bt'); if (u && im?.tagName === 'IMG') im.src = u; });
       el.onclick = (e) => {
         if (e.target.closest('input')) return;
@@ -7472,6 +7477,26 @@ If you want to offset all timestamps of a track such that the first one is zero,
       };
       return el;
     });
+    // 種類ごとにまとめる（画像・リンク・サブ動画）。中の並びは重なり順のまま（上ほど前）
+    const kinds = [['i', '🖼 画像'], ['l', '🔗 リンク'], ['v', '🎞 サブ動画']], rev = a.slice().reverse(), out = [];
+    const used = kinds.filter(([t]) => a.some(it => it.t === t));
+    for (const [t, label] of kinds) {
+      const idx = rev.map((it, j) => it.t === t ? j : -1).filter(j => j >= 0); if (!idx.length) continue;
+      const items = idx.map(j => rev[j]), key = v.id + '|' + t, closed = bGrpClosed.has(key), allHide = items.every(it => it.hide);
+      if (used.length > 1 || items.length > 1) {
+        const h = document.createElement('div'); h.className = 'bgrp' + (v.g ? ' in' : '');
+        h.innerHTML = `<button class="be" title="この種類をまとめて表示／非表示">${allHide ? '—' : '👁'}</button><span class="bgn">${closed ? '▶' : '▼'} ${label}</span><span class="bgc">${items.length}</span>`;
+        h.title = 'クリックでたたむ／ひらく';
+        h.onclick = (e) => {
+          if (e.target.closest('.be')) { items.forEach(it => { it.hide = !allHide; if (it.hide && sel?.st === it) sel = null; }); renderBoard(); renderVideos(); paintDrawing(false); save(); return; }
+          closed ? bGrpClosed.delete(key) : bGrpClosed.add(key); renderVideos();
+        };
+        out.push(h);
+        if (closed) continue;
+      }
+      idx.forEach(j => out.push(rows[j]));
+    }
+    return out;
   }
   function dropBoard(id, target, after) {
     const vid = vList.querySelector(`.brow[data-id="${CSS.escape(target)}"]`)?.dataset.vid, a = S.board[vid]; if (!a) return;
