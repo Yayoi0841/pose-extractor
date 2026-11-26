@@ -3059,7 +3059,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       app: 'pose-extractor', version: 1, savedAt: new Date().toISOString(),
       name: S.name, day: S.day, current: S.current, cur: S.cur, motions: S.motions, notes: S.notes, pen: S.pen, eraser: S.eraser, layers: S.layers, layer: S.layer, ov: S.ov, flip: S.flip, keys: S.keys, stepped: S.stepped, ghost: S.ghost, groups: S.groups, top: S.top, board: S.board, arcs: S.arcs, meas: S.meas, guides: S.guides, onion: S.onion, keyGaps: S.keyGaps, follow: S.follow, track: S.track, followSm: S.followSm, fbPrev: S.fbPrev,
       fbr: S.fb ? { cur: S.fb.cur, rounds: S.fb.rounds, store: Object.fromEntries(Object.entries(S.fb.store).filter(([k]) => Number(k) !== S.fb.cur)) } : null,
-      videos: S.videos.map(v => ({ g: v.g, still: v.still, bClosed: v.bClosed || undefined, view: v === V() && has() && v.ready ? curView() : v.view, id: v.id, name: v.name, size: v.size, fp: v.fp, fps: v.fps, fpsSrc: v.fpsSrc, frame: v.frame, rStart: v.rStart, rEnd: v.rEnd, dur: v.dur, thumb: v.thumb })),
+      videos: S.videos.map(v => ({ g: v.g, still: v.still, bClosed: v.bClosed || undefined, view: v === V() && has() && v.ready ? curView() : v.view, fo: v === V() && has() && v.ready ? (fOff.x || fOff.y ? { x: Math.round(fOff.x), y: Math.round(fOff.y) } : undefined) : v.fo, id: v.id, name: v.name, size: v.size, fp: v.fp, fps: v.fps, fpsSrc: v.fpsSrc, frame: v.frame, rStart: v.rStart, rEnd: v.rEnd, dur: v.dur, thumb: v.thumb })),
     };
   }
   // ---- 作業（セッション）ごとに保存 ----
@@ -3691,6 +3691,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       if (typeof v.fp === 'string' && /^[0-9a-f]{1,64}$/.test(v.fp)) x.fp = v.fp;
       if (sId(v.g)) x.g = v.g;
       if (v.still) x.still = true;
+      if (v.fo && typeof v.fo === 'object') x.fo = { x: sNum(v.fo.x, 0, -20000, 20000), y: sNum(v.fo.y, 0, -20000, 20000) };
       if (v.view && typeof v.view === 'object') x.view = { z: sNum(v.view.z, 1, 0.25, 40), cx: sNum(v.view.cx, 0.5, -10, 10), cy: sNum(v.view.cy, 0.5, -10, 10) };
       return x;
     });
@@ -3949,7 +3950,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   function switchTo(id, thenFrame, quiet) {
     const cur = V();
-    if (cur && has()) { cur.frame = frame(); if (cur.ready && cur.id !== id) cur.view = curView(); }     // 今の位置と拡大を覚えておく
+    if (cur && has()) { cur.frame = frame(); if (cur.ready && cur.id !== id) { cur.view = curView(); cur.fo = { x: fOff.x, y: fOff.y }; } }     // 今の位置と拡大を覚えておく
     video.pause();
     S.cur = id;
     const v = V();
@@ -3976,6 +3977,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     video.playbackRate = nativeRate();
     $('#vpLabel').textContent = `${S.videos.indexOf(v) + 1}: ${v.name}`;
     view.z = 1; view.tx = view.ty = 0; layoutDraw();
+    fOff.x = v.fo?.x || 0; fOff.y = v.fo?.y || 0;   // 追従中にずらした量も動画ごと
     restoreView(v.view);   // この動画で最後に見ていた拡大・位置に戻す
     syncUI();
     goto(v.pending ?? v.frame, v.pending != null); v.pending = null;
