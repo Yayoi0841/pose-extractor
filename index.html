@@ -4817,7 +4817,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     return { z: Math.round(view.z * 1000) / 1000, cx: Math.round((vCenterX() - m.ox) / m.sw * 10000) / 10000, cy: Math.round((vp.clientHeight / 2 - m.oy) / m.sh * 10000) / 10000 };
   }
   function restoreView(sv) {
-    if (!sv || !(sv.z > 1.01)) { applyView(); return; }
+    if (!sv || !(sv.z > 0)) { applyView(); return; }   // 拡大していなくても、ずらした位置まで戻す
     view.z = sv.z; view.tx = view.ty = 0;
     const m = M(true);
     view.tx = vCenterX() - (m.ox + sv.cx * m.sw); view.ty = vp.clientHeight / 2 - (m.oy + sv.cy * m.sh);
