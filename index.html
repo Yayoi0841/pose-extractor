@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<script>if (window.top !== window.self) { document.documentElement.style.display = "none"; try { window.top.location = window.self.location; } catch (e) {} }</script>
+<script>if (window.top !== window.self && !(function(){try{return /[?&]pin=1(&|$)/.test(location.search)&&/[?&]sub=[a-z0-9]+/.test(location.search)&&!!window.top.document.body}catch(e){return false}})()) { document.documentElement.style.display = "none"; try { window.top.location = window.self.location; } catch (e) {} }</script>
 
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src blob:; connect-src 'none'; font-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'">
-<script>/* 他のサイトの中に埋め込まれて表示されたら止める（クリックの乗っ取り対策）。開いた元のページとの関係も切る */ if (window.top !== window.self) { window.stop(); document.documentElement.innerHTML = ""; throw new Error("framed"); } try { window.opener = null; } catch (e) {}</script>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src blob:; connect-src 'none'; font-src 'none'; frame-src 'self'; worker-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'">
+<script>/* 他のサイトの中に埋め込まれて表示されたら止める（クリックの乗っ取り対策。自分の「最前面に固定」窓の中だけは許可）。開いた元のページとの関係も切る */ if (window.top !== window.self && !(function(){try{return /[?&]pin=1(&|$)/.test(location.search)&&/[?&]sub=[a-z0-9]+/.test(location.search)&&!!window.top.document.body}catch(e){return false}})()) { window.stop(); document.documentElement.innerHTML = ""; throw new Error("framed"); } try { window.opener = null; } catch (e) {}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ポーズ抜き出し</title>
 <style>
@@ -540,6 +540,7 @@
     <div class="menu" id="menuView"><button class="mi">表示</button>
       <div class="dropdown">
         <button data-act="subWin">🪟 もう一つウィンドウを開く（資料を並べて見る）</button>
+        <button data-act="pinWin">📌 最前面に固定して開く（ほかのアプリの上に表示）</button>
         <hr>
         <button data-act="cvLight" id="mCvLight">　キャンバス（動画の外側）を明るくする</button>
         <hr>
@@ -3757,6 +3758,25 @@ If you want to offset all timestamps of a track such that the first one is zero,
     say('もう一つウィンドウを開きました（見るだけ用。そちらの変更は保存されません）。開かないときはブラウザのポップアップ許可を確認してください');
     setTimeout(() => subPending.delete(tok), 60000);
   }
+  // 📌 最前面に固定（Chrome / Edge の「ピクチャーインピクチャー」窓。ほかのアプリの上に常に表示）
+  async function openPinWin() {
+    if (SUB_TOK) { say('元のウィンドウの右クリックから開いてください'); return; }
+    const ch = subChan();
+    if (!ch || !('documentPictureInPicture' in window)) { say('このブラウザでは最前面に固定できません（Chrome / Edge で使えます）。ふつうのウィンドウで開きます'); openSubWin(); return; }
+    if (documentPictureInPicture.window) { say('最前面のウィンドウはもう開いています（1つまで）'); return; }
+    const tok = Math.random().toString(36).slice(2, 12).padEnd(8, '0');
+    subPending.add(tok); setTimeout(() => subPending.delete(tok), 60000);
+    try {
+      const pw = await documentPictureInPicture.requestWindow({ width: 720, height: 480 });
+      const d = pw.document;
+      d.title = '📌 ポーズ抜き出し（最前面）';
+      const st = d.createElement('style'); st.textContent = 'html,body{margin:0;height:100%;background:#1e1e1e;overflow:hidden}iframe{border:0;width:100%;height:100%;display:block}';
+      d.head.appendChild(st);
+      const fr = d.createElement('iframe'); fr.src = location.pathname + '?sub=' + tok + '&pin=1';
+      d.body.appendChild(fr);
+      say('📌 最前面に固定したウィンドウを開きました（見るだけ用・保存しません）。大きさは窓のふちをドラッグで変えられます');
+    } catch (err) { subPending.delete(tok); say('最前面のウィンドウを開けませんでした（ボタンを押した直後でないと開けません）'); }
+  }
   if (!SUB_TOK && 'BroadcastChannel' in window) subChan().onmessage = async (e) => {
     const m = e.data; if (!m || m.t !== 'ready' || !subPending.has(m.tok)) return;
     subPending.delete(m.tok);
@@ -3765,7 +3785,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
     subChan().postMessage({ t: 'data', tok: m.tok, state, files, cur: S.cur, frame: has() ? frame() : 1 });
   };
   function subWinStart() {
-    tempMode = true; syncTemp(); document.body.classList.add('subWin'); document.title = '🪟 ' + document.title;
+    tempMode = true; syncTemp(); document.body.classList.add('subWin');
+    if (/[?&]pin=1(&|$)/.test(location.search)) document.body.classList.add('focus');   // 最前面の小窓は集中モードで始める（Shift+Y で戻せる） document.title = '🪟 ' + document.title;
     $('#saveState').textContent = '🪟 サブウィンドウ（見るだけ・保存しません）';
     $('#bTemp').classList.add('hidden');
     const ch = subChan(); if (!ch) { say('このブラウザではサブウィンドウを使えません'); return; }
@@ -5424,7 +5445,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   vp.addEventListener('contextmenu', e => {
     if (e.target.closest('#anno')) return;
     e.preventDefault();
-    if (S.tool !== 'select' || !has()) { ctxMenu(e.clientX, e.clientY, [['🪟 もう一つウィンドウを開く（資料を並べて見る）', () => openSubWin()]]); return; }
+    if (S.tool !== 'select' || !has()) { ctxMenu(e.clientX, e.clientY, [['🪟 もう一つウィンドウを開く（資料を並べて見る）', () => openSubWin()], ['📌 最前面に固定して開く', () => openPinWin()]]); return; }
     const [x, y] = toNorm(e), hit = picAt(x, y), ms = mItems();
     if (hit && !ms.some(o => o.st === hit) && selSt() !== hit) setMulti([{ st: hit, f: ownerOf(hit) }]);
     const n = mItems().length || (selSt() ? 1 : 0), items = [];
@@ -5435,7 +5456,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     } else if (boardOf().some(it => !it.hide)) items.push(['置いた資料をすべて1枚の画像で保存', () => ACT.exportSel()], ['-']);
     items.push(['すべて選択（Ctrl+A）', () => { const l = allPickables(); if (l.length) setMulti(l); else say('選べる画像・文字・資料がありません'); }]);
     if (n) items.push(['選択をやめる（Esc）', () => { sel = null; msel = []; paintDrawing(false); }]);
-    items.push(['-'], ['🪟 もう一つウィンドウを開く（資料を並べて見る）', () => openSubWin()]);
+    items.push(['-'], ['🪟 もう一つウィンドウを開く（資料を並べて見る）', () => openSubWin()], ['📌 最前面に固定して開く', () => openPinWin()]);
     ctxMenu(e.clientX, e.clientY, items);
   });
   vp.addEventListener('pointerup', endXf); vp.addEventListener('pointercancel', endXf);
@@ -5996,6 +6017,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     library: () => { $('#libPop').dataset.anchor = 'menu'; openLib($('#menuFile')); },
     exportFrame: () => exportFrame().catch(err => say('画像を保存できませんでした：' + err.message)),
     subWin: () => openSubWin(),
+    pinWin: () => openPinWin(),
     fbText: () => fbTextDlg(),
     exportFb: () => exportFb().catch(err => say('FBを書き出せませんでした：' + err.message)),
     exportSel: () => exportSel().catch(err => say('画像を保存できませんでした：' + err.message)),
