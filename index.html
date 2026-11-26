@@ -181,6 +181,9 @@
   #viewport.panning, #viewport.panning #draw { cursor: grab !important; }
   #board { position: absolute; inset: 0; pointer-events: none; }
   .bitem { position: absolute; display: block; object-fit: fill; background: #000; box-shadow: 0 0 0 1px rgba(0,0,0,.7), 0 2px 10px rgba(0,0,0,.45); }
+  .bitem.blink { display: flex; flex-direction: column; justify-content: center; gap: .15em; padding: 0 .7em; background: #22303d; border: 1px solid #4aa3ff; border-radius: 6px; color: #fff; overflow: hidden; line-height: 1.25; }
+  .bitem.blink b { font-size: 1em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bitem.blink span { font-size: .72em; color: #9fd0ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bitem.boff { display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; color: #ccc; font-size: 12px; background: #333; }
   #bctl { position: absolute; z-index: 8; display: flex; gap: 4px; align-items: center; background: rgba(28,28,28,.92); border: 1px solid #555; padding: 3px 6px; border-radius: 3px; }
   #bctl.hidden { display: none; }
@@ -530,6 +533,7 @@
         <button data-act="exportPptx">パワポを書き出す (.pptx)</button>
         <button data-act="fbText">今までのFBを文字でまとめる（コピー・.txt）…</button>
         <button data-act="exportFb">FBを渡す用に書き出す（画像＋文字）…</button>
+        <button data-act="linkText">参考リンクだけ書き出す（.txt・コピー）…</button>
         <button data-act="exportFrame">今のフレームを画像で保存 (.png)<span>Ctrl+Shift+S</span></button>
         <button data-act="exportSel">選んだ資料を1枚の画像で保存 (.png)<span>Ctrl+Shift+E</span></button>
         <button data-act="exportMp4">MP4 で書き出す（ペン・メモ・画像ごと）…</button>
@@ -888,11 +892,14 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <p>何も選んでいないときは「もう一つウィンドウを開く」「最前面に固定して開く」。資料を選んでいるときは「1枚の画像で保存」「削除」も出ます。</p>
 </section>
 
-<section data-t="サブ資料 サブ動画 画像 置く 貼り付け ボード 画面の外">
+<section data-t="サブ資料 サブ動画 画像 置く 貼り付け ボード 画面の外 リンク URL YouTube 切り取り トリミング">
 <h2>サブ資料を置く</h2>
 <ul>
 <li><b>画像</b>：<kbd>Ctrl</kbd>+<kbd>V</kbd>、または動画の上にドロップ</li>
 <li><b>サブ動画</b>：左の一覧から動画をビューポートへドラッグ（「表示 → サブ動画を置く」でも）</li>
+<li><b>参考動画のリンク</b>：URL（https://…）をコピーして <kbd>Ctrl</kbd>+<kbd>V</kbd>、または右クリック →「🔗 リンクを貼る」。ダブルクリックでブラウザの新しいタブで開く。右クリックで「直す・コピー」</li>
+<li><b>リンクだけ書き出す</b>：「ファイル → 参考リンクだけ書き出す」。動画ごとに名前とURLを並べて、コピーか .txt で保存</li>
+<li><b>画像の切り取り</b>：画像を右クリック →「✂ 画像を切り取る」→ 残したい範囲をドラッグ。元の解像度のまま。「元の画像は残す」にチェックで別の画像として置く</li>
 <li><kbd>V</kbd> でドラッグ移動・角で拡大縮小。<b>画面の外にも置ける</b>（ホイールで縮小すると見やすい）</li>
 <li>サブ動画は下のバーで再生・位置・🔗同期（メインと一緒に再生）</li>
 <li><kbd>Delete</kbd> で外す／<kbd>Ctrl</kbd>+<kbd>Z</kbd> で戻す</li>
@@ -3088,6 +3095,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   // ---- ポーズ画像は別に1回だけ保存し、作業データ（毎回の自動保存）には参照だけを入れる ----
   // ブラウザは 64KB を超えるデータを毎回別ファイルにするため、画像を分けて自動保存のたびのファイル作成を減らす
   const imgKeyOf = new Map(), imgStored = new Set();
+  function isUrl(u) { return typeof u === 'string' && u.length < 2000 && /^https?:\/\/[^\s<>"'`]+$/i.test(u.trim()); }
   async function imgKey(url) {
     if (imgKeyOf.has(url)) return imgKeyOf.get(url);
     let k;
@@ -3718,7 +3726,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const pt2 = (q) => Array.isArray(q) && q.length === 2 ? [sNum(q[0], 0.5, -10, 10), sNum(q[1], 0.5, -10, 10)] : null;
     o.arcs = {}; if (d.arcs && typeof d.arcs === 'object') for (const vid of Object.keys(d.arcs)) { if (!Array.isArray(d.arcs[vid])) continue; o.arcs[sStr(vid, 400)] = d.arcs[vid].slice(0, 50).filter(a => a && typeof a.p === 'object').map(a => { const p = {}; for (const f of Object.keys(a.p)) { const q = pt2(a.p[f]); if (/^\d{1,7}$/.test(f) && q) p[f] = q; } return { c: COLOR_RE.test(a.c) ? a.c : '#ffd400', p }; }); }
     o.meas = {}; if (d.meas && typeof d.meas === 'object') for (const vid of Object.keys(d.meas)) { const fo = d.meas[vid]; if (!fo || typeof fo !== 'object') continue; const out = {}; for (const f of Object.keys(fo)) if (/^\d{1,7}$/.test(f) && Array.isArray(fo[f])) out[f] = fo[f].filter(l => Array.isArray(l) && l.length === 4).slice(0, 100).map(l => l.map(v => sNum(v, 0.5, -10, 10))); o.meas[sStr(vid, 400)] = out; }
-    o.board = {}; if (d.board && typeof d.board === 'object') for (const vid of Object.keys(d.board)) { if (!Array.isArray(d.board[vid])) continue; o.board[sStr(vid, 400)] = d.board[vid].slice(0, 200).filter(it => it && sId(it.id) && (it.t === 'i' ? PIC_RE.test(it.k) : it.t === 'v' && typeof it.v === 'string')).map(it => { const x = { b: true, t: it.t, id: it.id, name: it.name ? sStr(it.name, 60) : undefined, hide: !!it.hide, x: sNum(it.x, 0, -50, 50), y: sNum(it.y, 0, -50, 50), w: sNum(it.w, 0.3, 0.005, 50), h: it.h == null ? null : sNum(it.h, 0.2, 0.005, 50) }; if (it.t === 'i') x.k = it.k; else { x.v = sStr(it.v, 400); x.sync = it.sync !== false; x.t0 = sNum(it.t0, 0, 0, 1e6); } return x; }); }
+    o.board = {}; if (d.board && typeof d.board === 'object') for (const vid of Object.keys(d.board)) { if (!Array.isArray(d.board[vid])) continue; o.board[sStr(vid, 400)] = d.board[vid].slice(0, 200).filter(it => it && sId(it.id) && (it.t === 'i' ? PIC_RE.test(it.k) : it.t === 'l' ? isUrl(it.url) : it.t === 'v' && typeof it.v === 'string')).map(it => { const x = { b: true, t: it.t, id: it.id, name: it.name ? sStr(it.name, 60) : undefined, hide: !!it.hide, x: sNum(it.x, 0, -50, 50), y: sNum(it.y, 0, -50, 50), w: sNum(it.w, 0.3, 0.005, 50), h: it.h == null ? null : sNum(it.h, 0.2, 0.005, 50) }; if (it.t === 'i') x.k = it.k; else if (it.t === 'l') x.url = it.url.trim(); else { x.v = sStr(it.v, 400); x.sync = it.sync !== false; x.t0 = sNum(it.t0, 0, 0, 1e6); } return x; }); }
     o.guides = { center: !!d.guides?.center, thirds: !!d.guides?.thirds };
     o.onion = { on: !!d.onion?.on, n: Math.round(sNum(d.onion?.n, 2, 1, 5)) };
     o.keyGaps = d.keyGaps !== false;
@@ -5300,7 +5308,14 @@ If you want to offset all timestamps of a track such that the first one is zero,
   window.addEventListener('paste', e => {
     if (e.target.closest?.('input, textarea, [contenteditable]')) return;
     const fs = [...(e.clipboardData?.files || [])].filter(f => isImgFile(f));
-    if (!fs.length) return;
+    if (!fs.length) {   // 文字のリンク（https://…）を貼ったら、リンクとして置く
+      const us = (e.clipboardData?.getData('text') || '').split(/\s+/).filter(isUrl);
+      if (!us.length) return;
+      e.preventDefault();
+      if (!has()) { say('先に動画を開いてから、リンクを貼ってください'); return; }
+      us.slice(0, 20).forEach((u, i) => placeLink(u, null, i === us.length - 1));
+      return;
+    }
     e.preventDefault();
     if (!has()) { addFiles(fs); return; }   // 動画を開いていないときは一覧に画像として追加
     placePics(fs);
@@ -5460,12 +5475,17 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const [x, y] = toNorm(e), hit = picAt(x, y), ms = mItems();
     if (hit && !ms.some(o => o.st === hit) && selSt() !== hit) setMulti([{ st: hit, f: ownerOf(hit) }]);
     const n = mItems().length || (selSt() ? 1 : 0), items = [];
+    const one = n === 1 ? (mItems()[0]?.st || selSt()) : null;
+    if (one?.t === 'l') items.push(['🔗 リンクを開く', () => openLink(one.url)], ['📋 リンクをコピー', async () => { try { await navigator.clipboard.writeText(one.url); say('リンクをコピーしました'); } catch { say('コピーできませんでした'); } }], ['✎ リンクを直す…', () => linkDlg(one)], ['-']);
+    if (one?.t === 'i') items.push(['✂ 画像を切り取る（トリミング）…', () => cropDlg(one)], ['-']);
     if (n) {
       items.push([`選んだ${n > 1 ? n + '個' : '物'}を1枚の画像で保存（Ctrl+Shift+E）`, () => ACT.exportSel()]);
       items.push([`選んだ${n > 1 ? n + '個' : '物'}を削除（Delete）`, () => deletePic()]);
       items.push(['-']);
     } else if (boardOf().some(it => !it.hide)) items.push(['置いた資料をすべて1枚の画像で保存', () => ACT.exportSel()], ['-']);
-    items.push(['すべて選択（Ctrl+A）', () => { const l = allPickables(); if (l.length) setMulti(l); else say('選べる画像・文字・資料がありません'); }]);
+    items.push(['🔗 リンクを貼る…', () => linkDlg()]);
+    if (Object.values(S.board || {}).some(a => a.some(it => it.t === 'l'))) items.push(['📄 リンクだけ書き出す…', () => linkTextDlg()]);
+    items.push(['-'], ['すべて選択（Ctrl+A）', () => { const l = allPickables(); if (l.length) setMulti(l); else say('選べる画像・文字・資料がありません'); }]);
     if (n) items.push(['選択をやめる（Esc）', () => { sel = null; msel = []; paintDrawing(false); }]);
     items.push(['-'], ['🪟 もう一つウィンドウを開く（資料を並べて見る）', () => openSubWin()], ['📌 最前面に固定して開く', () => openPinWin()]);
     ctxMenu(e.clientX, e.clientY, items);
@@ -5486,7 +5506,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (st.b) {
       const a = boardOf(), i = a.indexOf(st); a.splice(i, 1); sel = null;
       undoStack.push({ vid: S.cur, f: frame(), op: 'bdel', st, i }); redoStack.length = 0;
-      renderBoard(); renderVideos(); paintDrawing(false); save(); say(`${st.t === 'v' ? 'サブ動画' : '画像'}を外しました（Ctrl+Zで戻せます）`); return;
+      renderBoard(); renderVideos(); paintDrawing(false); save(); say(`${st.t === 'v' ? 'サブ動画' : st.t === 'l' ? 'リンク' : '画像'}を外しました（Ctrl+Zで戻せます）`); return;
     }
     const f = txtOwner(st), n = note(S.cur, f), i = n.strokes.indexOf(st);
     n.strokes.splice(i, 1); tidyNote(S.cur, f); sel = null;
@@ -6010,6 +6030,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (!has() || S.tool !== 'select' || spaceDown || zd || e.target.closest('button, textarea')) return;
     const [x, y] = toNorm(e), hit = picAt(x, y);
     if (hit?.t === 'x' && !hit.b) { sel = { vid: S.cur, f: txtOwner(hit), st: hit }; startText(hit, false); return; }   // 文字はダブルクリックで直す
+    if (hit?.t === 'l') { openLink(hit.url); return; }   // リンクはダブルクリックで開く
     toggleFocus();
   });
   $('#mFull').onclick = async () => {
@@ -6050,6 +6071,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
     subWin: () => openSubWin(),
     pinWin: () => openPinWin(),
     fbText: () => fbTextDlg(),
+    linkText: () => linkTextDlg(),
+    linkAdd: () => linkDlg(),
     exportFb: () => exportFb().catch(err => say('FBを書き出せませんでした：' + err.message)),
     exportSel: () => exportSel().catch(err => say('画像を保存できませんでした：' + err.message)),
     storeVideos: () => toggleStoreVideos(),
@@ -7397,17 +7420,19 @@ If you want to offset all timestamps of a track such that the first one is zero,
   // 置いた物はベース動画ごと・全コマ共通。座標はベース動画に対する割合なので、画面の外（下敷きの外）にも置ける
   const boardEl = $('#board'), bctl = $('#bctl');
   const boardOf = (vid = S.cur) => (S.board[vid] ||= []);
+  function linkLabel(u) { try { const h = new URL(u).hostname.replace(/^www\.|^m\./, ''); return /youtube\.com$|youtu\.be$/.test(h) ? 'YouTube' : /(^|\.)x\.com$|twitter\.com$/.test(h) ? 'X' : /instagram\.com$/.test(h) ? 'Instagram' : /tiktok\.com$/.test(h) ? 'TikTok' : /vimeo\.com$/.test(h) ? 'Vimeo' : h; } catch { return 'リンク'; } }
+  function openLink(u) { if (!isUrl(u)) return; window.open(u.trim(), '_blank', 'noopener,noreferrer'); }
   const bEls = new Map();   // 置いた物の id → 要素
   let bSeq = 0;
   const bid = () => 'b' + Date.now().toString(36) + (bSeq++);
   function boardElFor(it) {
     let el = bEls.get(it.id);
     const sv = it.t === 'v' ? S.videos.find(v => v.id === it.v) : null;
-    const want = it.t === 'i' ? 'IMG' : sv?.url ? 'VIDEO' : 'DIV';
-    if (el && (el.tagName !== want || (want === 'VIDEO' && el.dataset.url !== sv.url))) { if (el.tagName === 'VIDEO') { el.pause(); el.removeAttribute('src'); el.load(); } el.remove(); el = null; }
+    const want = it.t === 'i' ? 'IMG' : it.t === 'l' ? 'DIV' : sv?.url ? 'VIDEO' : 'DIV';
+    if (el && (el.tagName !== want || (want === 'VIDEO' && el.dataset.url !== sv.url) || (want === 'IMG' && el.dataset.k !== it.k))) { if (el.tagName === 'VIDEO') { el.pause(); el.removeAttribute('src'); el.load(); } el.remove(); el = null; }
     if (!el) {
       el = document.createElement(want.toLowerCase()); el.className = 'bitem'; el.draggable = false;
-      if (want === 'IMG') { const p = pic(it.k); if (p.url) el.src = p.url; else p.ready?.then(() => { if (pics.get(it.k)?.url) el.src = pics.get(it.k).url; }); }
+      if (want === 'IMG') { el.dataset.k = it.k; const p = pic(it.k); if (p.url) el.src = p.url; else p.ready?.then(() => { if (pics.get(it.k)?.url) el.src = pics.get(it.k).url; }); }
       else if (want === 'VIDEO') {
         Object.assign(el, { muted: true, loop: true, playsInline: true, preload: 'auto' }); el.dataset.url = sv.url; el.src = sv.url;
         el.addEventListener('loadedmetadata', () => {
@@ -7416,13 +7441,14 @@ If you want to offset all timestamps of a track such that the first one is zero,
           if (it.sync !== false && !video.paused) el.play().catch(() => {});
         });
         el.addEventListener('timeupdate', () => { if (sel?.st === it) syncBctl(); });
-      } else { el.textContent = `未接続：${sv?.name || '動画'}（一覧に入れ直すと表示）`; el.classList.add('boff'); }
+      } else if (it.t === 'l') el.classList.add('blink');
+      else { el.textContent = `未接続：${sv?.name || '動画'}（一覧に入れ直すと表示）`; el.classList.add('boff'); }
       bEls.set(it.id, el); boardEl.append(el);
     }
     return el;
   }
   // ---- 動画の一覧に、置いた資料をレイヤーとして並べる（上ほど前） ----
-  const bName = (it, i) => it.name || (it.t === 'v' ? (S.videos.find(v => v.id === it.v)?.name || 'サブ動画') : `画像 ${i + 1}`);
+  const bName = (it, i) => it.name || (it.t === 'l' ? linkLabel(it.url) : it.t === 'v' ? (S.videos.find(v => v.id === it.v)?.name || 'サブ動画') : `画像 ${i + 1}`);
   function bRows(v) {
     const a = S.board?.[v.id]; if (!a?.length) return [];
     const imgN = new Map(); let n = 0; a.forEach(it => { if (it.t === 'i') { imgN.set(it, n++); if (!it.name) it.name = `画像 ${n}`; } });   // 名前は最初に決めたまま（並べ替えても変わらない）
@@ -7432,7 +7458,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       el.draggable = true; el.dataset.id = it.id; el.dataset.vid = v.id;
       el.title = 'クリックで選ぶ・ドラッグで重なり順・ダブルクリックで名前変更';
       const sv = it.t === 'v' ? S.videos.find(x => x.id === it.v) : null, th = it.t === 'i' ? pics.get(it.k)?.url : sv?.thumb;
-      el.innerHTML = `<button class="be" title="表示／非表示">${it.hide ? '—' : '👁'}</button>${th ? `<img class="bt" src="${esc(th)}" alt="">` : '<span class="bt"></span>'}<span class="bk">${it.t === 'v' ? '動画' : '画像'}</span><span class="bn">${esc(bName(it, imgN.get(it) ?? 0))}</span><button class="mini bx" title="外す">×</button>`;
+      el.innerHTML = `<button class="be" title="表示／非表示">${it.hide ? '—' : '👁'}</button>${th ? `<img class="bt" src="${esc(th)}" alt="">` : '<span class="bt"></span>'}<span class="bk">${it.t === 'v' ? '動画' : it.t === 'l' ? 'リンク' : '画像'}</span><span class="bn">${esc(bName(it, imgN.get(it) ?? 0))}</span><button class="mini bx" title="外す">×</button>`;
       if (it.t === 'i' && !th) pic(it.k).ready?.then(() => { const u = pics.get(it.k)?.url, im = el.querySelector('.bt'); if (u && im?.tagName === 'IMG') im.src = u; });
       el.onclick = (e) => {
         if (e.target.closest('input')) return;
@@ -7460,6 +7486,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       if (it.hide) return;
       const el = boardElFor(it), h = it.h ?? it.w * 9 / 16;
       const x = S.flip ? 1 - it.x - it.w : it.x;
+      if (it.t === 'l') { const key = it.name + '\n' + it.url; if (el.dataset.k !== key) { el.dataset.k = key; el.innerHTML = `<b>🔗 ${esc(it.name || linkLabel(it.url))}</b><span>${esc(it.url)}</span>`; } el.style.fontSize = Math.max(7, Math.min(40, h * rect.h * 0.26)) + 'px'; el.title = it.url + '（ダブルクリックで開く）'; }
       Object.assign(el.style, { left: rect.x + x * rect.w + 'px', top: rect.y + it.y * rect.h + 'px', width: it.w * rect.w + 'px', height: h * rect.h + 'px', zIndex: 1 + i, transform: S.flip ? 'scaleX(-1)' : '' });
     });
     syncBctl();
@@ -7510,6 +7537,102 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (S.tool !== 'select') setTool('select');
     sel = { vid: S.cur, f: frame(), st: it };
     renderBoard(); renderVideos(); paintDrawing(false); save(); say(msg);
+  }
+  function placeLink(url, name, last = true) {
+    const w = 0.3, h = w * rect.w / rect.h / 4.2, p = boardSpot(w, h);
+    const it = { b: true, t: 'l', id: bid(), url: url.trim(), name: name || linkLabel(url), x: p.x, y: p.y, w, h };
+    if (last) addBoardItem(it, 'リンクを置きました。ダブルクリックで開く・右クリックで編集／書き出し（全コマ共通）');
+    else { boardOf().push(it); undoStack.push({ vid: S.cur, f: frame(), op: 'badd', st: it }); }
+  }
+  async function linkDlg(it) {   // リンクを貼る／直す
+    if (!has()) { say('先に動画を開いてください'); return; }
+    const q = ask('', it ? 'リンクを直す' : 'リンクを貼る', false, true), mt = $('#modalText');
+    mt.innerHTML = `<div style="display:grid;grid-template-columns:auto 1fr;gap:8px 10px;align-items:center;min-width:min(520px,80vw)">
+      <span>URL</span><input id="lkUrl" placeholder="https://www.youtube.com/watch?v=…" style="height:28px">
+      <span>名前</span><input id="lkName" placeholder="（空欄ならサイト名）" style="height:28px"></div>
+      <div style="margin-top:10px;display:flex;gap:6px;align-items:center"><button id="lkOk" style="background:var(--hl);color:#fff;padding:0 16px;height:28px">${it ? '直す' : '置く'}</button><span id="lkInfo" class="hint"></span></div>`;
+    $('#lkUrl').value = it?.url || ''; $('#lkName').value = it?.name && it.name !== linkLabel(it.url) ? it.name : '';
+    setTimeout(() => $('#lkUrl').focus(), 30);
+    const ok = () => {
+      const u = $('#lkUrl').value.trim(), nm = $('#lkName').value.trim().slice(0, 60);
+      if (!isUrl(u)) { $('#lkInfo').textContent = 'https:// から始まるURLを入れてください'; return; }
+      if (it) { const a = { url: it.url, name: it.name }; it.url = u; it.name = nm || linkLabel(u); undoStack.push({ vid: S.cur, f: frame(), op: 'xf', st: it, a, b: { url: it.url, name: it.name } }); redoStack.length = 0; renderBoard(); renderVideos(); save(); say('リンクを直しました'); }
+      else placeLink(u, nm || null);
+      $('#mYes').click();
+    };
+    $('#lkOk').onclick = ok; [$('#lkUrl'), $('#lkName')].forEach(i => i.onkeydown = (k) => { k.stopPropagation(); if (k.key === 'Enter') ok(); });
+    await q;
+  }
+  // ✂ 画像を切り取る（トリミング）：ドラッグで範囲 → その部分だけの画像に（元の解像度のまま）
+  async function cropDlg(st) {
+    if (!st || st.t !== 'i') return;
+    const p = pic(st.k); await p.ready; const im = p.img; if (!im) { say('画像を読み込めませんでした'); return; }
+    const owner = st.b ? undefined : ownerOf(st);
+    const q = ask('', '画像を切り取る（ドラッグで範囲を選ぶ）', false, true), mt = $('#modalText');
+    const IW = im.naturalWidth, IH = im.naturalHeight, sc = Math.min(1, Math.min(window.innerWidth * 0.8, 900) / IW, window.innerHeight * 0.58 / IH);
+    const CW = Math.max(1, Math.round(IW * sc)), CH = Math.max(1, Math.round(IH * sc));
+    mt.innerHTML = `<canvas id="crC" width="${CW}" height="${CH}" style="display:block;cursor:crosshair;background:#111;touch-action:none;max-width:100%"></canvas>
+      <div style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="crOk" style="background:var(--hl);color:#fff;padding:0 16px;height:28px" disabled>✂ 切り取る</button>
+      <label><input type="checkbox" id="crKeep"> 元の画像は残して、切り取った部分を新しく置く</label><span id="crInfo" class="hint">画像の上をドラッグして範囲を選んでください</span></div>`;
+    const cv = $('#crC'), g = cv.getContext('2d'); let r = null, d0 = null;
+    const draw = () => {
+      g.clearRect(0, 0, CW, CH); g.drawImage(im, 0, 0, CW, CH);
+      if (!r || r.w < 2 || r.h < 2) return;
+      g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, 0, CW, r.y); g.fillRect(0, r.y + r.h, CW, CH - r.y - r.h); g.fillRect(0, r.y, r.x, r.h); g.fillRect(r.x + r.w, r.y, CW - r.x - r.w, r.h);
+      g.strokeStyle = '#4aa3ff'; g.lineWidth = 2; g.setLineDash([6, 4]); g.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2); g.setLineDash([]);
+    };
+    const pt = (e) => { const b = cv.getBoundingClientRect(); return [Math.max(0, Math.min(CW, (e.clientX - b.left) * CW / b.width)), Math.max(0, Math.min(CH, (e.clientY - b.top) * CH / b.height))]; };
+    cv.onpointerdown = (e) => { e.preventDefault(); cv.setPointerCapture(e.pointerId); d0 = pt(e); r = null; };
+    cv.onpointermove = (e) => { if (!d0) return; const [x, y] = pt(e); r = { x: Math.min(x, d0[0]), y: Math.min(y, d0[1]), w: Math.abs(x - d0[0]), h: Math.abs(y - d0[1]) }; draw();
+      const ok = r.w >= 3 && r.h >= 3; $('#crOk').disabled = !ok; if (ok) $('#crInfo').textContent = `${Math.round(r.w / sc)} × ${Math.round(r.h / sc)} px`; };
+    cv.onpointerup = () => { d0 = null; };
+    draw();
+    $('#crOk').onclick = async () => {
+      if (!r || r.w < 3 || r.h < 3) return;
+      const sx = Math.round(r.x / sc), sy = Math.round(r.y / sc), sw = Math.max(1, Math.min(IW - sx, Math.round(r.w / sc))), sh = Math.max(1, Math.min(IH - sy, Math.round(r.h / sc)));
+      const c = document.createElement('canvas'); c.width = sw; c.height = sh; c.getContext('2d').drawImage(im, sx, sy, sw, sh, 0, 0, sw, sh);
+      let url = c.toDataURL('image/webp', 0.95); if (!url.startsWith('data:image/webp')) url = c.toDataURL('image/png');
+      const k = await imgKey(url); setPicUrl(k, url); await pics.get(k).ready; keepPic(k);
+      const nb = { k, x: st.x + st.w * sx / IW, y: st.y + st.h * sy / IH, w: st.w * sw / IW, h: st.h * sh / IH };
+      const keep = $('#crKeep').checked;
+      $('#mYes').click();
+      if (keep) {
+        const ni = { ...st, ...nb, id: st.b ? bid() : undefined };
+        if (st.b) { ni.name = `画像 ${boardOf().filter(x => x.t === 'i').length + 1}`; boardOf().push(ni); undoStack.push({ vid: S.cur, f: frame(), op: 'badd', st: ni }); renderBoard(); renderVideos(); }
+        else { delete ni.id; note(S.cur, owner, true).strokes.push(ni); undoStack.push({ vid: S.cur, f: owner, op: 'add', st: ni }); fbChanged(); }
+        sel = { vid: S.cur, f: st.b ? frame() : owner, st: ni }; msel = [];
+      } else {
+        const a = { k: st.k, x: st.x, y: st.y, w: st.w, h: st.h }; Object.assign(st, nb);
+        undoStack.push({ vid: S.cur, f: st.b ? frame() : owner, op: 'xf', st, a, b: { ...nb } });
+        if (st.b) { bEls.get(st.id)?.remove(); bEls.delete(st.id); renderBoard(); renderVideos(); } else fbChanged();
+      }
+      redoStack.length = 0; paintDrawing(true); save();
+      say(`切り取りました（${sw}×${sh}px）。Ctrl+Z で戻せます`);
+    };
+    await q;
+  }
+  // リンクだけを書き出す（動画ごと・名前とURL）
+  function linkTextBuild(all) {
+    const L = [], vs = all ? S.videos : S.videos.filter(v => v.id === S.cur); let n = 0;
+    L.push(`■ ${S.name || V()?.name.replace(/\.[^.]+$/, '') || '（無題）'}　参考リンク`, '');
+    for (const v of vs) {
+      const ls = (S.board?.[v.id] || []).filter(it => it.t === 'l'); if (!ls.length) continue;
+      L.push(`▼ ${v.name}`); ls.forEach(it => { L.push(`・${it.name || linkLabel(it.url)}`, `  ${it.url}`); n++; }); L.push('');
+    }
+    if (!n) L.push('（リンクはまだありません。Ctrl+V でURLを貼るか、右クリック→「リンクを貼る」）');
+    return { text: L.join('\n'), total: n };
+  }
+  async function linkTextDlg() {
+    if (!S.videos.length) { say('先に動画を追加してください'); return; }
+    const q = ask('', '参考リンクを書き出す', false, true), mt = $('#modalText');
+    mt.innerHTML = `<label><input type="checkbox" id="lktAll" checked> すべての動画のリンク（外すと今の動画だけ）</label>
+      <textarea id="lktOut" readonly style="display:block;width:100%;box-sizing:border-box;height:40vh;margin-top:8px;font:12px/1.6 'Yu Gothic UI',Meiryo,monospace;background:#1e1e1e;color:#eee;border:1px solid #555;padding:8px;white-space:pre;overflow:auto"></textarea>
+      <div style="margin-top:8px;display:flex;gap:6px;align-items:center"><button id="lktCopy" style="background:var(--hl);color:#fff;padding:0 14px;height:28px">📋 コピー</button><button id="lktSave" style="height:28px;padding:0 12px">💾 .txt で保存</button><span id="lktInfo" class="hint"></span></div>`;
+    const upd = () => { const r = linkTextBuild($('#lktAll').checked); $('#lktOut').value = r.text; $('#lktInfo').textContent = `${r.total}件`; };
+    $('#lktAll').onchange = upd; upd();
+    $('#lktCopy').onclick = async () => { const t = $('#lktOut').value; try { await navigator.clipboard.writeText(t); } catch { const ta = $('#lktOut'); ta.focus(); ta.select(); try { document.execCommand('copy'); } catch {} } $('#lktInfo').textContent = 'コピーしました'; };
+    $('#lktSave').onclick = async () => { const nm = (S.name || V()?.name.replace(/\.[^.]+$/, '') || 'リンク').replace(/[\\/:*?"<>|]/g, '_').slice(0, 50); await saveFile(`${nm}_参考リンク.txt`, new Blob(['\ufeff' + $('#lktOut').value.replace(/\n/g, '\r\n')], { type: 'text/plain' })); };
+    await q;
   }
   function placeSubVideo(id) {
     if (!has()) { say('先にベースの動画を開いてください'); return; }
