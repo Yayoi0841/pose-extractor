@@ -897,7 +897,8 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <ul>
 <li><b>画像</b>：<kbd>Ctrl</kbd>+<kbd>V</kbd>、または動画の上にドロップ</li>
 <li><b>サブ動画</b>：左の一覧から動画をビューポートへドラッグ（「表示 → サブ動画を置く」でも）</li>
-<li><b>参考動画のリンク</b>：URL（https://…）をコピーして <kbd>Ctrl</kbd>+<kbd>V</kbd>、または右クリック →「🔗 リンクを貼る」。ダブルクリックでブラウザの新しいタブで開く。右クリックで「直す・コピー」</li>
+<li><b>参考動画のリンク</b>：URL（https://…）をコピーして <kbd>Ctrl</kbd>+<kbd>V</kbd> → <b>名前</b>（何の動画か）を入れて <kbd>Enter</kbd>。右クリック →「🔗 リンクを貼る」でも。ダブルクリックでブラウザの新しいタブで開く</li>
+<li><b>名前を変える</b>：リンクを右クリック →「✎ 名前を付ける」、または左の一覧で名前をダブルクリック</li>
 <li><b>リンクだけ書き出す</b>：「ファイル → 参考リンクだけ書き出す」。動画ごとに名前とURLを並べて、コピーか .txt で保存</li>
 <li><b>画像の切り取り</b>：画像を右クリック →「✂ 画像を切り取る」→ 残したい範囲をドラッグ。元の解像度のまま。「元の画像は残す」にチェックで別の画像として置く</li>
 <li><kbd>V</kbd> でドラッグ移動・角で拡大縮小。<b>画面の外にも置ける</b>（ホイールで縮小すると見やすい）</li>
@@ -5313,6 +5314,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       if (!us.length) return;
       e.preventDefault();
       if (!has()) { say('先に動画を開いてから、リンクを貼ってください'); return; }
+      if (us.length === 1) { linkDlg(null, us[0]); return; }   // 1つなら名前を付けてから置く
       us.slice(0, 20).forEach((u, i) => placeLink(u, null, i === us.length - 1));
       return;
     }
@@ -5476,7 +5478,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (hit && !ms.some(o => o.st === hit) && selSt() !== hit) setMulti([{ st: hit, f: ownerOf(hit) }]);
     const n = mItems().length || (selSt() ? 1 : 0), items = [];
     const one = n === 1 ? (mItems()[0]?.st || selSt()) : null;
-    if (one?.t === 'l') items.push(['🔗 リンクを開く', () => openLink(one.url)], ['📋 リンクをコピー', async () => { try { await navigator.clipboard.writeText(one.url); say('リンクをコピーしました'); } catch { say('コピーできませんでした'); } }], ['✎ リンクを直す…', () => linkDlg(one)], ['-']);
+    if (one?.t === 'l') items.push(['🔗 リンクを開く', () => openLink(one.url)], ['📋 リンクをコピー', async () => { try { await navigator.clipboard.writeText(one.url); say('リンクをコピーしました'); } catch { say('コピーできませんでした'); } }], ['✎ 名前を付ける・URLを直す…', () => linkDlg(one)], ['-']);
     if (one?.t === 'i') items.push(['✂ 画像を切り取る（トリミング）…', () => cropDlg(one)], ['-']);
     if (n) {
       items.push([`選んだ${n > 1 ? n + '個' : '物'}を1枚の画像で保存（Ctrl+Shift+E）`, () => ACT.exportSel()]);
@@ -7541,18 +7543,18 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function placeLink(url, name, last = true) {
     const w = 0.3, h = w * rect.w / rect.h / 4.2, p = boardSpot(w, h);
     const it = { b: true, t: 'l', id: bid(), url: url.trim(), name: name || linkLabel(url), x: p.x, y: p.y, w, h };
-    if (last) addBoardItem(it, 'リンクを置きました。ダブルクリックで開く・右クリックで編集／書き出し（全コマ共通）');
+    if (last) addBoardItem(it, 'リンクを置きました。ダブルクリックで開く・右クリックで名前を付ける／書き出し（全コマ共通）');
     else { boardOf().push(it); undoStack.push({ vid: S.cur, f: frame(), op: 'badd', st: it }); }
   }
-  async function linkDlg(it) {   // リンクを貼る／直す
+  async function linkDlg(it, preUrl) {   // リンクを貼る／名前を付ける・直す
     if (!has()) { say('先に動画を開いてください'); return; }
-    const q = ask('', it ? 'リンクを直す' : 'リンクを貼る', false, true), mt = $('#modalText');
+    const q = ask('', it ? 'リンクの名前・URLを直す' : 'リンクを貼る（何の動画か名前を付けられます）', false, true), mt = $('#modalText');
     mt.innerHTML = `<div style="display:grid;grid-template-columns:auto 1fr;gap:8px 10px;align-items:center;min-width:min(520px,80vw)">
       <span>URL</span><input id="lkUrl" placeholder="https://www.youtube.com/watch?v=…" style="height:28px">
-      <span>名前</span><input id="lkName" placeholder="（空欄ならサイト名）" style="height:28px"></div>
+      <span>名前</span><input id="lkName" placeholder="例：回し蹴り（横から）・ジャンプの着地 など（空欄ならサイト名）" maxlength="60" style="height:28px"></div>
       <div style="margin-top:10px;display:flex;gap:6px;align-items:center"><button id="lkOk" style="background:var(--hl);color:#fff;padding:0 16px;height:28px">${it ? '直す' : '置く'}</button><span id="lkInfo" class="hint"></span></div>`;
-    $('#lkUrl').value = it?.url || ''; $('#lkName').value = it?.name && it.name !== linkLabel(it.url) ? it.name : '';
-    setTimeout(() => $('#lkUrl').focus(), 30);
+    $('#lkUrl').value = it?.url || preUrl || ''; $('#lkName').value = it?.name && it.name !== linkLabel(it.url) ? it.name : '';
+    setTimeout(() => ($('#lkUrl').value ? $('#lkName') : $('#lkUrl')).focus(), 30);
     const ok = () => {
       const u = $('#lkUrl').value.trim(), nm = $('#lkName').value.trim().slice(0, 60);
       if (!isUrl(u)) { $('#lkInfo').textContent = 'https:// から始まるURLを入れてください'; return; }
