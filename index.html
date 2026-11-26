@@ -680,7 +680,7 @@
     <video id="gvid" playsinline muted class="hidden"></video>
     <canvas id="draw"></canvas>
     <canvas id="anno"></canvas>
-    <div id="bctl" class="hidden"><button id="bcPlay" title="このサブ動画だけ再生／停止">▶</button><input id="bcSeek" type="range" min="0" max="1000" value="0" title="このサブ動画の位置"><button id="bcSync" class="tg" title="メインと一緒に再生・停止する">🔗 同期</button><button id="bcFront" title="いちばん前へ">前へ</button><button id="bcBack" title="いちばん後ろへ">後ろへ</button></div>
+    <div id="bctl" class="hidden"><button id="bcPlay" title="このサブ動画だけ再生／停止">▶</button><button id="bcPrev" title="1コマ戻る（Shift+クリックで5コマ）">◀|</button><button id="bcNext" title="1コマ進む（Shift+クリックで5コマ）">|▶</button><input id="bcSeek" type="range" min="0" max="1000" step="1" value="0" title="このサブ動画の位置（コマ単位）"><span id="bcF" style="min-width:70px;text-align:right;font-size:11px;color:#ccc;font-variant-numeric:tabular-nums"></span><button id="bcSync" class="tg" title="メインと一緒に再生・停止する">🔗 同期</button><button id="bcFront" title="いちばん前へ">前へ</button><button id="bcBack" title="いちばん後ろへ">後ろへ</button></div>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="lumA" color-interpolation-filters="sRGB"><feColorMatrix type="luminanceToAlpha"/></filter></svg>
     <div id="brushCur"></div>
     <textarea id="txtEd" class="hidden" spellcheck="false" wrap="off"></textarea>
@@ -907,7 +907,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <li><b>画像の切り取り</b>：画像を右クリック →「✂ 画像を切り取る」→ 残したい範囲をドラッグ。元の解像度のまま。「元の画像は残す」にチェックで別の画像として置く</li>
 <li><kbd>V</kbd> でドラッグ移動・角で拡大縮小。<b>画面の外にも置ける</b>（ホイールで縮小すると見やすい）</li>
 <li><b>サブ動画はいくつでも置ける</b>。<b>クリックでその動画だけ再生／停止</b>（ほかのサブ動画は止まるので重くならない）。左の一覧の ▶ でも同じ</li>
-<li>選んだサブ動画の下のバーで位置・🔗同期（オンにするとメインと一緒に再生）</li>
+<li>選んだサブ動画の下のバー：<b>◀| |▶ で1コマずつ</b>（Shift+クリックで5コマ）・スライダーもコマ単位・「F 12 / 72」で今のコマ・🔗同期（オンにするとメインと一緒に再生）</li>
 <li><kbd>Delete</kbd> で外す／<kbd>Ctrl</kbd>+<kbd>Z</kbd> で戻す</li>
 <li><b>レイヤー</b>：左の一覧で動画の下に並ぶ。👁 で表示切替・ドラッグで重なり順・ダブルクリックで名前</li>
 <li>動画の「▼ 資料N」でレイヤーをしまう／出す（しまっても画面からは消えません）</li>
@@ -4810,6 +4810,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     fbx.style.display = showF ? 'block' : 'none';
     if (showF) Object.assign(fbx.style, { left: rect.x + 'px', top: rect.y + 'px', width: rect.w + 'px', height: rect.h + 'px' });
     placeTxtEd();
+    try { syncBctl(); } catch {}   // サブ動画の操作バーも、拡大・移動に合わせて動かす
     const pct = has() && video.videoWidth ? Math.round(rect.w * view.z / video.videoWidth * 100) : 100;
     $('#zPct').textContent = pct + '%';
     $('#vpZoom').classList.toggle('hidden', !has());
@@ -7530,15 +7531,29 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const st = S.tool === 'select' ? selSt() : null, el = st?.b && st.t === 'v' ? bEls.get(st.id) : null;
     if (!el || el.tagName !== 'VIDEO') { bctl.classList.add('hidden'); return; }
     const c = corners(st);
-    bctl.style.left = Math.max(4, c[3][0]) + 'px'; bctl.style.top = (c[3][1] + 6) + 'px'; bctl.style.width = Math.max(240, c[2][0] - c[3][0]) + 'px';
+    // 動画の見えている部分の真下にそろえる（画面の端からはみ出した分は縮める）
+    const W = vp.clientWidth, H = vp.clientHeight, l = Math.max(4, c[3][0]), r = Math.min(W - 4, c[2][0]), bw = Math.min(W - 8, Math.max(330, r - l));
+    bctl.style.width = bw + 'px'; bctl.style.left = Math.max(4, Math.min(W - 4 - bw, l)) + 'px';
+    bctl.style.top = Math.max(4, Math.min(H - 40, c[3][1] + 6)) + 'px';
     bctl.classList.remove('hidden');
     $('#bcPlay').textContent = el.paused ? '▶' : '❚❚';
     $('#bcSync').classList.toggle('on', st.sync !== false);
-    if (el.duration && document.activeElement !== $('#bcSeek')) $('#bcSeek').value = Math.round(el.currentTime / el.duration * 1000);
+    const fp = subFps(st), nF = el.duration ? Math.max(1, Math.round(el.duration * fp)) : 0;
+    if (nF) { $('#bcSeek').max = nF - 1; if (document.activeElement !== $('#bcSeek')) $('#bcSeek').value = Math.min(nF - 1, Math.floor(el.currentTime * fp + 1e-3)); $('#bcF').textContent = `F ${Math.min(nF, Math.floor(el.currentTime * fp + 1e-3) + 1)} / ${nF}`; }
   }
   const selEl = () => { const st = selSt(); return st?.b ? bEls.get(st.id) : null; };
   $('#bcPlay').onclick = () => { const el = selEl(); if (!el) return; if (el.paused) el.play().catch(() => {}); else el.pause(); setTimeout(syncBctl, 50); };
-  $('#bcSeek').oninput = () => { const el = selEl(); if (el?.duration) { el.pause(); el.currentTime = $('#bcSeek').value / 1000 * el.duration; selSt().t0 = el.currentTime; save(); } };
+  const subFps = (st) => S.videos.find(v => v.id === st?.v)?.fps || 30;
+  function subSeekF(n) {   // サブ動画を n コマ目（0から）へ。コマの真ん中の時刻にして、ずれないように
+    const el = selEl(), st = selSt(); if (!el?.duration || !st) return;
+    const fp = subFps(st), nF = Math.max(1, Math.round(el.duration * fp)); n = Math.max(0, Math.min(nF - 1, n));
+    el.pause(); el.currentTime = Math.min(el.duration - 1e-3, (n + 0.5) / fp); st.t0 = el.currentTime; save();
+    $('#bcSeek').value = n; $('#bcF').textContent = `F ${n + 1} / ${nF}`;
+  }
+  const subCurF = () => { const el = selEl(); return el ? Math.floor(el.currentTime * subFps(selSt()) + 1e-3) : 0; };
+  $('#bcSeek').oninput = () => subSeekF(+$('#bcSeek').value);
+  $('#bcPrev').onclick = (e) => subSeekF(subCurF() - (e.shiftKey ? 5 : 1));
+  $('#bcNext').onclick = (e) => subSeekF(subCurF() + (e.shiftKey ? 5 : 1));
   $('#bcSync').onclick = () => { const st = selSt(); if (!st) return; st.sync = st.sync === false; save(); syncBctl(); say(st.sync ? 'メインと一緒に再生・停止します' : 'このサブ動画はメインとは別に動きます'); };
   $('#bcFront').onclick = () => { const st = selSt(); if (!st) return; const a = boardOf(), i = a.indexOf(st); a.splice(i, 1); a.push(st); renderBoard(); renderVideos(); save(); };
   $('#bcBack').onclick = () => { const st = selSt(); if (!st) return; const a = boardOf(), i = a.indexOf(st); a.splice(i, 1); a.unshift(st); renderBoard(); renderVideos(); save(); };
