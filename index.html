@@ -906,7 +906,8 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <li><b>リンクだけ書き出す</b>：「ファイル → 参考リンクだけ書き出す」。動画ごとに名前とURLを並べて、コピーか .txt で保存</li>
 <li><b>画像の切り取り</b>：画像を右クリック →「✂ 画像を切り取る」→ 残したい範囲をドラッグ。元の解像度のまま。「元の画像は残す」にチェックで別の画像として置く</li>
 <li><kbd>V</kbd> でドラッグ移動・角で拡大縮小。<b>画面の外にも置ける</b>（ホイールで縮小すると見やすい）</li>
-<li>サブ動画は下のバーで再生・位置・🔗同期（メインと一緒に再生）</li>
+<li><b>サブ動画はいくつでも置ける</b>。<b>クリックでその動画だけ再生／停止</b>（ほかのサブ動画は止まるので重くならない）。左の一覧の ▶ でも同じ</li>
+<li>選んだサブ動画の下のバーで位置・🔗同期（オンにするとメインと一緒に再生）</li>
 <li><kbd>Delete</kbd> で外す／<kbd>Ctrl</kbd>+<kbd>Z</kbd> で戻す</li>
 <li><b>レイヤー</b>：左の一覧で動画の下に並ぶ。👁 で表示切替・ドラッグで重なり順・ダブルクリックで名前</li>
 <li>動画の「▼ 資料N」でレイヤーをしまう／出す（しまっても画面からは消えません）</li>
@@ -5427,7 +5428,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       const c = corners(st)[(h + 2) % 4], m = M();
       ax = (c[0] - m.ox) / m.sw; ay = (c[1] - m.oy) / m.sh;
     }
-    xf = { id: e.pointerId, st, mode, a, x, y, ax, ay, vid: S.cur, f: frame() };
+    xf = { id: e.pointerId, st, mode, a, x, y, ax, ay, vid: S.cur, f: frame(), t0: performance.now() };
     paintDrawing(false);
   });
   vp.addEventListener('pointermove', e => {
@@ -5467,7 +5468,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
       if (ops.length) { undoStack.push({ op: 'grp', ops }); redoStack.length = 0; fbChanged(); renderBoard(); save(); }
       paintDrawing(true); return;
     }
-    const { st, a } = xf, b = { x: st.x, y: st.y, w: st.w, h: st.h }; if (st.t === 'x') b.s = st.s; xf = null;
+    const { st, a } = xf, b = { x: st.x, y: st.y, w: st.w, h: st.h }; if (st.t === 'x') b.s = st.s;
+    const tap = xf.mode === 'move' && performance.now() - xf.t0 < 350; xf = null;
+    if (tap && st.b && st.t === 'v' && a.x === b.x && a.y === b.y) subPlay(st);   // サブ動画はクリックで再生／停止（ほかのサブ動画は止める）
     if (a.x !== b.x || a.y !== b.y || a.w !== b.w || a.h !== b.h) {
       undoStack.push({ vid: S.cur, f: frame(), op: 'xf', st, a, b }); redoStack.length = 0; fbChanged();
     }
@@ -7447,6 +7450,8 @@ If you want to offset all timestamps of a track such that the first one is zero,
           if (it.sync !== false && !video.paused) el.play().catch(() => {});
         });
         el.addEventListener('timeupdate', () => { if (sel?.st === it) syncBctl(); });
+        const pb = () => { const b = vList.querySelector(`.brow[data-id="${CSS.escape(it.id)}"] .bp`); if (b) b.textContent = el.paused ? '▶' : '❚❚'; };
+        el.addEventListener('play', pb); el.addEventListener('pause', pb);
       } else if (it.t === 'l') el.classList.add('blink');
       else { el.textContent = `未接続：${sv?.name || '動画'}（一覧に入れ直すと表示）`; el.classList.add('boff'); }
       bEls.set(it.id, el); boardEl.append(el);
@@ -7465,11 +7470,12 @@ If you want to offset all timestamps of a track such that the first one is zero,
       el.draggable = true; el.dataset.id = it.id; el.dataset.vid = v.id;
       el.title = 'クリックで選ぶ・ドラッグで重なり順・ダブルクリックで名前変更';
       const sv = it.t === 'v' ? S.videos.find(x => x.id === it.v) : null, th = it.t === 'i' ? pics.get(it.k)?.url : sv?.thumb;
-      el.innerHTML = `<button class="be" title="表示／非表示">${it.hide ? '—' : '👁'}</button>${th ? `<img class="bt" src="${esc(th)}" alt="">` : it.t === 'l' ? '<span class="bt" style="display:inline-flex;align-items:center;justify-content:center;background:#22303d;font-size:11px">🔗</span>' : '<span class="bt"></span>'}<span class="bk">${it.t === 'v' ? '動画' : it.t === 'l' ? 'リンク' : '画像'}</span><span class="bn">${esc(bName(it, imgN.get(it) ?? 0))}</span><button class="mini bx" title="外す">×</button>`;
+      el.innerHTML = `<button class="be" title="表示／非表示">${it.hide ? '—' : '👁'}</button>${th ? `<img class="bt" src="${esc(th)}" alt="">` : it.t === 'l' ? '<span class="bt" style="display:inline-flex;align-items:center;justify-content:center;background:#22303d;font-size:11px">🔗</span>' : '<span class="bt"></span>'}<span class="bk">${it.t === 'v' ? '動画' : it.t === 'l' ? 'リンク' : '画像'}</span><span class="bn">${esc(bName(it, imgN.get(it) ?? 0))}</span>${it.t === 'v' ? `<button class="mini bp" title="このサブ動画だけ再生／停止">${bEls.get(it.id)?.paused === false ? '❚❚' : '▶'}</button>` : ''}<button class="mini bx" title="外す">×</button>`;
       if (it.t === 'i' && !th) pic(it.k).ready?.then(() => { const u = pics.get(it.k)?.url, im = el.querySelector('.bt'); if (u && im?.tagName === 'IMG') im.src = u; });
       el.onclick = (e) => {
         if (e.target.closest('input')) return;
         if (e.target.closest('.be')) { it.hide = !it.hide; if (it.hide && sel?.st === it) sel = null; renderBoard(); renderVideos(); paintDrawing(false); save(); return; }
+        if (e.target.closest('.bp')) { if (v.id !== S.cur) { switchTo(v.id); setTimeout(() => subPlay(it), 600); return; } subPlay(it); return; }
         if (e.target.closest('.bx')) { if (v.id !== S.cur) { switchTo(v.id); return; } sel = { vid: S.cur, f: frame(), st: it }; deletePic(); return; }
         if (e.detail === 2 && e.target.closest('.bn')) { inlineEdit(el.querySelector('.bn'), bName(it, imgN.get(it) ?? 0), '名前', (val) => { if (val) it.name = val; renderVideos(); save(); }); return; }
         const pickIt = () => { if (it.hide) { it.hide = false; renderBoard(); } if (S.tool !== 'select') setTool('select'); sel = { vid: S.cur, f: frame(), st: it }; paintDrawing(false); renderVideos(); };
@@ -7661,12 +7667,21 @@ If you want to offset all timestamps of a track such that the first one is zero,
     $('#lktSave').onclick = async () => { const nm = (S.name || V()?.name.replace(/\.[^.]+$/, '') || 'リンク').replace(/[\\/:*?"<>|]/g, '_').slice(0, 50); await saveFile(`${nm}_参考リンク.txt`, new Blob(['\ufeff' + $('#lktOut').value.replace(/\n/g, '\r\n')], { type: 'text/plain' })); };
     await q;
   }
+  // クリックしたサブ動画だけを再生（同時に何本も再生すると重いので、ほかのサブ動画は止める）
+  function subPlay(st) {
+    const el = bEls.get(st.id); if (!el || el.tagName !== 'VIDEO') return;
+    if (!el.paused) { el.pause(); say('サブ動画を止めました'); syncBctl(); return; }
+    boardOf().forEach(it => { if (it !== st && it.t === 'v') { const o = bEls.get(it.id); if (o?.tagName === 'VIDEO' && !o.paused && (it.sync === false || video.paused)) o.pause(); } });
+    el.playbackRate = Math.max(0.0625, video.playbackRate || 1);
+    el.play().catch(() => {}); syncBctl();
+    say(`▶ 「${bName(st, 0)}」を再生中（もう一度クリックで停止）`);
+  }
   function placeSubVideo(id) {
     if (!has()) { say('先にベースの動画を開いてください'); return; }
     const sv = S.videos.find(v => v.id === id); if (!sv) return;
     if (id === S.cur) { say('ベースの動画と同じ動画です。ほかの動画を選んでください'); return; }
     const w = 0.45, p = boardSpot(w, w * 9 / 16 * (rect.w / rect.h));
-    addBoardItem({ b: true, t: 'v', id: bid(), v: id, x: p.x, y: p.y, w, h: null, sync: true }, `サブ動画「${sv.name}」を置きました。ドラッグで移動・角で拡大縮小（画面の外にも置けます）`);
+    addBoardItem({ b: true, t: 'v', id: bid(), v: id, x: p.x, y: p.y, w, h: null, sync: false }, `サブ動画「${sv.name}」を置きました。クリックで再生／停止・ドラッグで移動・角で拡大縮小（画面の外にも置けます）`);
   }
   async function placeBoardImages(files) {
     let n = 0, last = null;
