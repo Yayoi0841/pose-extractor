@@ -909,6 +909,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <li><b>画像の切り取り</b>：画像を右クリック →「✂ 画像を切り取る」→ 残したい範囲をドラッグ。元の解像度のまま。「元の画像は残す」にチェックで別の画像として置く</li>
 <li><kbd>V</kbd> でドラッグ移動・角で拡大縮小。<b>画面の外にも置ける</b>（ホイールで縮小すると見やすい）</li>
 <li><b>サブ動画はいくつでも置ける</b>。<b>動画の上でダブルクリックすると、その動画だけ再生／停止</b>（ほかのサブ動画は止まるので重くならない）。左の一覧の ▶ でも同じ</li>
+<li><b>サブ動画にもペンで描ける</b>：ペン（<kbd>B</kbd>）でサブ動画の上に描くと、<b>その動画の今のコマのFB</b>として入る（サブ動画を動かすと線も一緒に動く・コマを変えるとそのコマの線に変わる・その動画を開いても見られる）。消しゴムも同じ</li>
 <li>選んだサブ動画の下のバー：<b>◀| |▶ で1コマずつ</b>（Shift+クリックで5コマ）・動画の真下の白いタイムスライダーをクリック／ドラッグ／ホイールでコマ移動・「F 12 / 72」で今のコマ・🔗同期（オンにするとメインと一緒に再生）</li>
 <li><kbd>Delete</kbd> で外す／<kbd>Ctrl</kbd>+<kbd>Z</kbd> で戻す</li>
 <li><b>レイヤー</b>：左の一覧で動画の下に並ぶ。👁 で表示切替・ドラッグで重なり順・ダブルクリックで名前</li>
@@ -5009,7 +5010,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     dctx.beginPath(); dctx.rect(m.ox * dpr, m.oy * dpr, m.sw * dpr, m.sh * dpr); dctx.clip();   // 動画の外には描かない
     dctx.drawImage(below, 0, 0);
     let a = actv;
-    if (live) { ltctx.clearRect(0, 0, ltmp.width, ltmp.height); ltctx.drawImage(actv, 0, 0); drawStroke(ltctx, live, m); a = ltmp; }
+    if (live && !live.sub) { ltctx.clearRect(0, 0, ltmp.width, ltmp.height); ltctx.drawImage(actv, 0, 0); drawStroke(ltctx, live, m); a = ltmp; }
     if (lv(act, n)) { dctx.globalAlpha = act.op / 100; dctx.drawImage(a, 0, 0); dctx.globalAlpha = 1; }
     dctx.drawImage(above, 0, 0);
     dctx.restore();
@@ -5020,6 +5021,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
         const ss = [...strokesOf(gn, L.id), ...(lv(L, n) ? strokesOf(n, L.id) : [])].filter(s => s.t === 'x'); if (!ss.length) return;
         dctx.globalAlpha = L.op / 100; ss.forEach(st => drawStroke(dctx, st, m)); dctx.globalAlpha = 1;
       }); }
+    drawSubPens(m);
     drawSel();
     paintAnno();
     renderBoard();
@@ -5050,12 +5052,53 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   $('#tgHide').onclick = () => toggleHide();
   $('#tgMemoHide').onclick = () => toggleMemoHide();
+  // ---- サブ動画にもペンで描く：線はその動画自身のFB（その動画の今のコマ）に入る。座標はサブ動画に対する割合 ----
+  const subFr = (it) => { const el = bEls.get(it.id), fp = S.videos.find(v => v.id === it.v)?.fps || 30; if (!el || el.tagName !== 'VIDEO' || !el.duration) return 0; return Math.min(Math.max(1, Math.round(el.duration * fp)), Math.floor(el.currentTime * fp + 1e-4) + 1); };
+  const subH = (it) => it.h ?? it.w * 9 / 16;
+  const subM = (it, m = M()) => ({ ox: m.ox + it.x * m.sw, oy: m.oy + it.y * m.sh, sw: it.w * m.sw, sh: subH(it) * m.sh });
+  function subAt(x, y) {   // その点にある、いちばん前のサブ動画
+    const bo = boardOf();
+    for (let i = bo.length - 1; i >= 0; i--) { const it = bo[i]; if (it.hide) continue; if (x >= it.x && x <= it.x + it.w && y >= it.y && y <= it.y + subH(it)) return it.t === 'v' && subFr(it) ? it : null; }
+    return null;
+  }
+  const toSub = (it, x, y) => [(x - it.x) / it.w, (y - it.y) / subH(it)];
+  function drawSubPens(m) {   // サブ動画の上の線（その動画の今のコマのFB）
+    for (const it of boardOf()) {
+      if (it.t !== 'v' || it.hide) continue;
+      const sf = subFr(it); if (!sf) continue;
+      const n2 = note(it.v, sf), lv2 = live?.sub === it;
+      if (!n2?.strokes.length && !lv2) continue;
+      const ms = subM(it, m), act = activeLayer();
+      dctx.save(); dctx.beginPath(); dctx.rect(ms.ox * dpr, ms.oy * dpr, ms.sw * dpr, ms.sh * dpr); dctx.clip();
+      S.layers.forEach(L => {
+        if (!(n2 ? lv(L, n2) : L.vis)) return;
+        const ss = n2 ? strokesOf(n2, L.id).filter(q => q.t !== 'x') : [];
+        if (lv2 && L === act) ss.push(live);
+        if (!ss.length) return;
+        ltctx.clearRect(0, 0, ltmp.width, ltmp.height); ss.forEach(q => drawStroke(ltctx, q, ms));
+        dctx.globalAlpha = L.op / 100; dctx.drawImage(ltmp, 0, 0); dctx.globalAlpha = 1;
+      });
+      dctx.restore();
+    }
+  }
   draw.addEventListener('pointerdown', e => {
     if (kDown || spaceDown || !has() || (S.tool !== 'pen' && S.tool !== 'eraser') || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault(); e.stopPropagation();
     if (fbHidden) toggleHide(false);   // 隠したまま描くと見えないので表示に戻す
     if (e.pointerType === 'pen' && !penSeen) { penSeen = true; $('#penPrT').textContent = '筆圧 ✓'; $('#penPrL').title = 'ペンタブレットを検出しました。筆圧で太さが変わります'; say('ペンタブレットを検出しました（筆圧で線の太さが変わります）'); }
     const L = activeLayer();
+    { const [x0, y0] = toNorm(e), sub = subAt(x0, y0);
+      if (sub) {   // サブ動画の上 → その動画のFBとして描く
+        const sf = subFr(sub), n2 = note(sub.v, sf);
+        if (n2 && !lv(L, n2)) { say(`レイヤー「${L.name}」はサブ動画のこのコマで非表示なので描けません`); return; }
+        bEls.get(sub.id).pause();
+        try { draw.setPointerCapture(e.pointerId); } catch {}
+        penFlip = e.pointerType === 'pen' && S.tool === 'pen' && ((e.buttons & 32) || e.button === 5);
+        const [x, y] = toSub(sub, x0, y0), p = pressureOf(e);
+        live = newStroke(); live.s /= sub.w; live.sub = sub; live.sf = sf; live.pts.push(x, y, p); sm = { x, y, p };
+        requestPaint(); return;
+      }
+    }
     if (!lv(L, note(S.cur, frame()))) { say(`レイヤー「${L.name}」はこのフレームで非表示なので描けません（目のアイコンで表示してください）`); return; }
     pauseExact();
     try { draw.setPointerCapture(e.pointerId); } catch {}
@@ -5076,10 +5119,11 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];   // 細かい入力も拾う（ペンタブ向け）
     const k = S.tool === 'eraser' ? 0 : S.pen.smooth / 100, m = M();
     for (const ev of (evs.length ? evs : [e])) {
-      const [x, y] = toNorm(ev), p = pressureOf(ev);
+      let [x, y] = toNorm(ev); const p = pressureOf(ev);
+      if (live.sub) [x, y] = toSub(live.sub, x, y);
       sm.x += (x - sm.x) * (1 - k); sm.y += (y - sm.y) * (1 - k); sm.p += (p - sm.p) * 0.5;
       const L = live.pts, n = L.length;
-      const dx = (sm.x - L[n - 3]) * m.sw, dy = (sm.y - L[n - 2]) * m.sh;
+      const mm = live.sub ? subM(live.sub, m) : m, dx = (sm.x - L[n - 3]) * mm.sw, dy = (sm.y - L[n - 2]) * mm.sh;
       if (dx * dx + dy * dy < 0.25) continue;
       L.push(sm.x, sm.y, sm.p);
     }
@@ -5088,14 +5132,23 @@ If you want to offset all timestamps of a track such that the first one is zero,
   const endStroke = (e) => {
     if (!live) return;
     // 補正で遅れた分を、ペンを離した位置まで追いつかせる
-    const [x, y] = toNorm(e), L = live.pts;
+    let [x, y] = toNorm(e); const L = live.pts;
+    if (live.sub) [x, y] = toSub(live.sub, x, y);
     if (S.tool !== 'eraser' && S.pen.smooth > 0) {
       const sx = L[L.length - 3], sy = L[L.length - 2], sp = L[L.length - 1];
       for (let i = 1; i <= 6; i++) L.push(sx + (x - sx) * i / 6, sy + (y - sy) * i / 6, sp * (1 - i / 12));
     }
-    lastPt = { key: `${S.cur}:${frame()}`, x: L[L.length - 3], y: L[L.length - 2] };
     const st = live; live = null;
     for (let i = 0; i < st.pts.length; i++) st.pts[i] = Math.round(st.pts[i] * 100000) / 100000;
+    if (st.sub) {   // サブ動画のFB（その動画・そのコマ）に入れる
+      const it = st.sub, sf = st.sf; delete st.sub; delete st.sf; lastPt = null;
+      note(it.v, sf, true).strokes.push(st);
+      undoStack.push({ vid: it.v, f: sf, op: 'add', st }); redoStack.length = 0;
+      fbChanged(); paintDrawing(true);
+      const nm = S.videos.find(v => v.id === it.v)?.name || 'サブ動画'; say(`サブ動画「${nm}」の ${sf} コマ目に描きました（その動画を開いてもFBとして見られます）`);
+      return;
+    }
+    lastPt = { key: `${S.cur}:${frame()}`, x: L[L.length - 3], y: L[L.length - 2] };
     commitStroke(st);
   };
   draw.addEventListener('pointerup', endStroke);
@@ -7455,6 +7508,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
         el.addEventListener('timeupdate', () => { if (sel?.st === it) syncBctl(); });
         const pb = () => { const b = vList.querySelector(`.brow[data-id="${CSS.escape(it.id)}"] .bp`); if (b) b.textContent = el.paused ? '▶' : '❚❚'; };
         el.addEventListener('play', pb); el.addEventListener('pause', pb);
+        let lastF = -1; const fr = () => { const f = subFr(it); if (f !== lastF) { lastF = f; requestPaint(); } };   // コマが変わったら、そのコマの線に描き直す
+        el.addEventListener('seeked', fr); el.addEventListener('timeupdate', fr);
+        if (el.requestVideoFrameCallback) { const loop = () => { fr(); if (!el.paused) el.requestVideoFrameCallback(loop); }; el.addEventListener('play', () => el.requestVideoFrameCallback(loop)); }
       } else if (it.t === 'l') el.classList.add('blink');
       else { el.textContent = `未接続：${sv?.name || '動画'}（一覧に入れ直すと表示）`; el.classList.add('boff'); }
       bEls.set(it.id, el); boardEl.append(el);
