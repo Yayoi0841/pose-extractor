@@ -505,6 +505,11 @@
   #vpZoom button { border-radius: 4px; }
   #ovPanel { border-radius: 8px; }
   #memoOv { border-radius: 4px; }
+  #memoOv { background: none; border: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  #memoOv > div { background: rgba(30,30,30,.78); border-left: 3px solid var(--memo); padding: 6px 10px; border-radius: 4px; }
+  #memoOv > div.ga { border-left-color: #4aa3ff; }
+  #memoOv > div.ga::before { content: '全コマ'; display: inline-block; font-size: 10px; color: #4aa3ff; border: 1px solid #4aa3ff; border-radius: 3px; padding: 0 4px; margin-right: 6px; vertical-align: 1px; }
+  .memoBox .mt b.ga { color: #4aa3ff; }
   #drop { color: #ccc; border: 1.5px dashed #5a5a5a; border-radius: 12px; }
   #drop #dropText span { color: #999 !important; }
   #drop #dropText .ngTxt { color: #f08a8a; font-weight: 600; } body.cvLight #drop #dropText .ngTxt { color: #c0392b; }
@@ -736,6 +741,8 @@
         <div class="mt"><b id="memoTitle">フレームメモ</b><span style="flex:1"></span><span>M で入力 / Esc で戻る</span></div>
         <div id="memoPrev" class="hidden"></div>
         <textarea id="memo" placeholder="このフレームへのメモ（FB内容など）"></textarea>
+        <div class="mt"><b class="ga">全フレームのメモ</b><span style="flex:1"></span><span>どのコマでも表示</span></div>
+        <textarea id="memoAll" placeholder="全フレームに出すメモ（動画全体へのFB・注意点など）"></textarea>
       </div>
       <div class="layerBox">
         <div class="mt"><b>レイヤー</b><span class="lhint">ペンのときは大きく表示</span>
@@ -953,6 +960,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <ul>
 <li><kbd>B</kbd> ペン／<kbd>E</kbd> 消しゴム／<kbd>V</kbd> 選択</li>
 <li><kbd>[</kbd><kbd>]</kbd> 太さ／<kbd>Shift</kbd>＋クリックで直線</li>
+<li><b>全フレームのメモ</b>：右の「FB」タブ、フレームメモの下の「全フレームのメモ」に書くと、どのコマでも画面左下に青い「全コマ」付きで出ます（動画全体へのFB・注意点に）</li>
 <li><b>全フレームに描く</b>：ペンのバーの「全フレームに描く」（<kbd>Shift</kbd>+<kbd>A</kbd>）をオン（青）にして描くと、その線はどのコマでも見えます。ガイド線・目印に。消しゴムもオンのときは全フレームの線だけに効き、「全フレームの線を消去」でまとめて消せます</li>
 <li><b>数字で指定</b>：スライダー横の数字（6px・100% など）をクリック → 打って <kbd>Enter</kbd>。太さは 0.5〜300px を 0.1 刻み</li>
 <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> 戻す</li>
@@ -4913,6 +4921,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   const layerById = (id) => S.layers.find(l => l.id === id);
   const activeLayer = () => layerById(S.layer) || S.layers[S.layers.length - 1];
   const strokesOf = (n, id) => (n?.strokes || []).filter(st => st.l === id);
+  const memoJoin = (vid, f) => { const a = note(vid, 0)?.memo || '', b = f ? (note(vid, f)?.memo || '') : ''; return a && b ? `${a}\n――――\n${b}` : a || b; };   // 書き出し用：全フレームのメモ＋そのコマのメモ
   let penAll = false;   // オンのあいだ、ペン・消しゴムは「全フレームの線」（フレーム0）に入る
   // そのコマに見えるFB＝全フレームの線（フレーム0の文字以外）＋そのコマのFB。全フレームの線は下に描く
   const fbView = (vid, f) => { const g = note(vid, 0), n = f ? note(vid, f) : null, gs = (g?.strokes || []).filter(s => s.t !== 'x'); if (!gs.length) return n; return { ...(n || { memo: '', strokes: [] }), strokes: [...gs, ...(n?.strokes || [])] }; };
@@ -5908,7 +5917,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function prevNote(vid, f) { const r = prevRound(); if (!r) return null; const n = S.fb.store[r.id]?.[vid]?.[f]; return n && (n.memo || n.strokes.length) ? n : null; }
   function renderRounds() {
     if (!S.fb) return;
-    const sel = $('#fbRound'), cnt = (ns) => Object.values(ns || {}).reduce((a, o) => a + Object.values(o).filter(n => n.memo).length, 0);
+    const sel = $('#fbRound'), cnt = (ns) => Object.values(ns || {}).reduce((a, o) => a + Object.entries(o).filter(([f, n]) => +f && n.memo).length, 0);
     sel.innerHTML = S.fb.rounds.map(r => `<option value="${r.id}"${r.id === S.fb.cur ? ' selected' : ''} title="${esc(r.at || '')} に開始">${esc(r.name)}・メモ${cnt(r.id === S.fb.cur ? S.notes : S.fb.store[r.id])}件</option>`).join('');
     const first = S.fb.rounds[0]?.id === S.fb.cur;
     $('#fbPrev').checked = S.fbPrev; $('#fbPrev').disabled = first;
@@ -5935,7 +5944,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   }
   async function deleteRound() {
     if (!S.fb || S.fb.rounds.length <= 1) return;
-    const r = S.fb.rounds.find(x => x.id === S.fb.cur), c = Object.values(S.notes).reduce((a, o) => a + Object.values(o).filter(n => n.memo).length, 0);
+    const r = S.fb.rounds.find(x => x.id === S.fb.cur), c = Object.values(S.notes).reduce((a, o) => a + Object.entries(o).filter(([f, n]) => +f && n.memo).length, 0);
     if (!(await ask(`「${r.name}」を削除しますか？${c ? `\nこの回のメモ（${c}件）が消えます。元に戻せません。` : ''}\nペンの線とほかの回のメモは残ります。`, 'FBの回を削除'))) return;
     const i = S.fb.rounds.indexOf(r); S.fb.rounds.splice(i, 1);
     const nx = S.fb.rounds[Math.min(i, S.fb.rounds.length - 1)], to = (S.fb.store[nx.id] ||= {});
@@ -5951,10 +5960,18 @@ If you want to offset all timestamps of a track such that the first one is zero,
   // ================= フレームメモ =================
   const memo = $('#memo');
   let memoAt = '';   // 入力欄が今どのフレームのメモか（動画ID:フレーム）。フレームが変わったら入力中でも中身を入れ替える
+  const memoAllEl = $('#memoAll');
+  let memoAllAt = '';
+  function renderMemoOv(ft) {   // 画面のメモ：全フレームのメモ（青）＋このコマのメモ（黄）
+    const ov = $('#memoOv'), ga = has() ? (note(S.cur, 0)?.memo || '') : '';
+    ov.replaceChildren(...[[ga, 'ga'], [ft, '']].filter(x => x[0]).map(([t, c]) => { const d = document.createElement('div'); d.textContent = t; if (c) d.className = c; return d; }));
+    ov.classList.toggle('hidden', !ga && !ft);
+  }
   function showMemo() {
     const f = frame(), n = has() ? note(S.cur, f) : null;
-    const ov = $('#memoOv');
-    ov.textContent = n?.memo || ''; ov.classList.toggle('hidden', !n?.memo);
+    renderMemoOv(n?.memo || '');
+    if (document.activeElement !== memoAllEl || memoAllAt !== S.cur) { memoAllEl.value = has() ? (note(S.cur, 0)?.memo || '') : ''; memoAllAt = S.cur; }
+    memoAllEl.disabled = !has();
     $('#memoTitle').textContent = has() ? `フレーム ${f} のメモ` : 'フレームメモ';
     const at = has() ? S.cur + ':' + f : '';
     if (document.activeElement !== memo || at !== memoAt) { memo.value = n?.memo || ''; memoAt = at; }
@@ -5970,7 +5987,14 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (memoAt !== S.cur + ':' + f) { showMemo(); return; }   // 別のフレームに移った直後の入力は、そのフレームのメモとして扱い直す
     const n = note(S.cur, f, true);
     n.memo = memo.value; tidyNote(S.cur, f);
-    const ov = $('#memoOv'); ov.textContent = memo.value; ov.classList.toggle('hidden', !memo.value);
+    renderMemoOv(memo.value);
+    clearTimeout(memoTimer); memoTimer = setTimeout(fbChanged, 300);
+  });
+  memoAllEl.addEventListener('input', () => {
+    if (!has()) return;
+    if (memoAllAt !== S.cur) { showMemo(); return; }
+    note(S.cur, 0, true).memo = memoAllEl.value; tidyNote(S.cur, 0);
+    renderMemoOv(note(S.cur, frame())?.memo || '');
     clearTimeout(memoTimer); memoTimer = setTimeout(fbChanged, 300);
   });
   function focusMemo() {
@@ -6521,9 +6545,10 @@ If you want to offset all timestamps of a track such that the first one is zero,
     ox.font = `600 ${fs}px "Segoe UI", "Yu Gothic UI", sans-serif`; ox.textBaseline = 'top';
     const tag = `F${n}`; ox.fillStyle = 'rgba(0,0,0,.6)'; ox.fillRect(0, 0, ox.measureText(tag).width + fs, fs * 1.6);
     ox.fillStyle = '#fff'; ox.fillText(tag, fs / 2, fs * 0.3);
-    if (nt?.memo) {
+    const mtx = memoJoin(S.cur, n);
+    if (mtx) {
       const lines = []; const maxW = W * 0.6;
-      nt.memo.split('\n').forEach(par => { let s = ''; for (const ch of par) { if (ox.measureText(s + ch).width > maxW) { lines.push(s); s = ch; } else s += ch; } lines.push(s); });
+      mtx.split('\n').forEach(par => { let s = ''; for (const ch of par) { if (ox.measureText(s + ch).width > maxW) { lines.push(s); s = ch; } else s += ch; } lines.push(s); });
       const lh = fs * 1.4, bh = lines.length * lh + fs, bw = Math.min(maxW, Math.max(...lines.map(l => ox.measureText(l).width))) + fs * 1.5;
       ox.fillStyle = 'rgba(30,30,30,.8)'; ox.fillRect(fs / 2, H - bh - fs / 2, bw, bh);
       ox.fillStyle = '#e8c547'; ox.fillRect(fs / 2, H - bh - fs / 2, Math.max(3, fs / 5), bh);
@@ -6589,6 +6614,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
         const o = notes[v.id]; if (!o) return;
         const fs = Object.keys(o).map(Number).filter(f => f > 0 && o[f]).sort((a, b) => a - b);
         const rows = [];
+        if (o[0]?.memo) rows.push(`■ 全フレーム\n${o[0].memo.split('\n').map(t => '　' + t).join('\n')}`);
         fs.forEach(f => {
           const n = o[f], fp = v.fps || 30, tm = `F${f}（${((f - 1) / fp).toFixed(2)}秒）`;
           const txts = (n.strokes || []).filter(s => s.t === 'x').map(s => s.txt.replace(/\n/g, ' ')).join('／');
@@ -6661,6 +6687,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       const parts = [];
       if (todo) parts.push({ txt: n.memo || '', done: false });
       if (withDone && n.done) parts.push({ txt: n.dmemo || '', done: true });
+      if (parts.length && note(v.id, 0)?.memo) parts.unshift({ txt: '【全フレーム】' + note(v.id, 0).memo, done: false });
       if (parts.length) jobs.push({ v, f, n, parts });
     }));
     if (!jobs.length) { say(withDone ? 'FBがありません' : '未完了のFBがありません（完了済みも入れるにはチェックを入れてください）'); return; }
@@ -6865,7 +6892,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     if (e.key === 'F1') { e.preventDefault(); openGuide(); return; }
     if (!$('#modal').classList.contains('hidden')) { if (e.key === 'Escape') $('#mNo').click(); if (e.key === 'Enter') $('#mYes').click(); return; }
     if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyV' && !e.target.closest?.('#recentDlg')) { e.preventDefault(); if (e.target.matches?.('select')) e.target.blur(); togglePlay(); return; }   // Alt+V：メモ入力中や選択欄にいても再生／停止
-    if (e.target === memo) { if (e.key === 'Escape') { memo.blur(); fbChanged(); } return; }
+    if (e.target === memo || e.target === memoAllEl) { if (e.key === 'Escape') { e.target.blur(); fbChanged(); } return; }
     if (e.target.matches('input:not([type=checkbox]):not([type=range]):not([type=radio]), select, textarea')) { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); return; }
     const k = e.key.toLowerCase(), code = e.code, ctrl = e.ctrlKey || e.metaKey;
     if (e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') { if (e.key === 'Alt' && spaceDown) e.preventDefault(); zoomCur(e); }
@@ -7446,9 +7473,10 @@ If you want to offset all timestamps of a track such that the first one is zero,
       if (oAnno) annoTo(og, P, f, u);
       og.font = `600 ${fsz}px "Segoe UI", "Yu Gothic UI", sans-serif`; og.textBaseline = 'top';
       if (oNum) { const tag = `F${f}`; og.fillStyle = 'rgba(0,0,0,.6)'; og.fillRect(vxOut, offY, og.measureText(tag).width + fsz, fsz * 1.6); og.fillStyle = '#fff'; og.fillText(tag, vxOut + fsz / 2, offY + fsz * 0.3); }
-      if (oMemo && nt?.memo) {
+      const mtx = memoJoin(S.cur, g ?? 0);
+      if (oMemo && mtx) {
         const lines = [], maxW = vw * 0.6;
-        nt.memo.split('\n').forEach(par => { let s = ''; for (const ch of par) { if (og.measureText(s + ch).width > maxW) { lines.push(s); s = ch; } else s += ch; } lines.push(s); });
+        mtx.split('\n').forEach(par => { let s = ''; for (const ch of par) { if (og.measureText(s + ch).width > maxW) { lines.push(s); s = ch; } else s += ch; } lines.push(s); });
         const lh = fsz * 1.4, bh = lines.length * lh + fsz, bw = Math.min(maxW, Math.max(...lines.map(l => og.measureText(l).width))) + fsz * 1.5;
         const x = vxOut + fsz / 2, y = offY + vh - bh - fsz / 2;
         og.fillStyle = 'rgba(30,30,30,.8)'; og.fillRect(x, y, bw, bh);
