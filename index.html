@@ -906,6 +906,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <li><b>参考動画のリンク</b>：URL（https://…）をコピーして <kbd>Ctrl</kbd>+<kbd>V</kbd> → <b>名前</b>（何の動画か）を入れて <kbd>Enter</kbd>。右クリック →「🔗 リンクを貼る」でも。ダブルクリックでブラウザの新しいタブで開く</li>
 <li><b>名前を変える</b>：リンクを右クリック →「✎ 名前を付ける」、または左の一覧で名前をダブルクリック</li>
 <li><b>リンクだけ書き出す</b>：「ファイル → 参考リンクだけ書き出す」。動画ごとに名前とURLを並べて、コピーか .txt で保存</li>
+<li><b>まとめて大きさを変える</b>：画像をドラッグで囲む（<kbd>Ctrl</kbd>+<kbd>A</kbd>・<kbd>Shift</kbd>+クリックでも）→ 外枠の角をドラッグ。数字で決めるなら右クリック →「⤢ 大きさをまとめて変える」（倍率％／幅をそろえる／高さをそろえる）</li>
 <li><b>画像の切り取り</b>：画像を右クリック →「✂ 画像を切り取る」→ 残したい範囲をドラッグ。元の解像度のまま。「元の画像は残す」にチェックで別の画像として置く</li>
 <li><kbd>V</kbd> でドラッグ移動・角で拡大縮小。<b>画面の外にも置ける</b>（ホイールで縮小すると見やすい）</li>
 <li><b>サブ動画はいくつでも置ける</b>。<b>動画の上でダブルクリックすると、その動画だけ再生／停止</b>（ほかのサブ動画は止まるので重くならない）。左の一覧の ▶ でも同じ</li>
@@ -5417,6 +5418,13 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const y0 = m.oy + st.y * m.sh, y1 = m.oy + (st.y + st.h) * m.sh;
     return [[xs[0], y0], [xs[1], y0], [xs[1], y1], [xs[0], y1]];
   }
+  // 複数選択の外枠（画面座標の4隅）。2個以上のとき角をドラッグでまとめて拡大縮小
+  function mBox(ms = mItems()) {
+    if (ms.length < 2) return null;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    ms.forEach(o => { const c = corners(o.st.b ? { ...o.st, h: bH(o.st) } : o.st); x0 = Math.min(x0, c[0][0]); y0 = Math.min(y0, c[0][1]); x1 = Math.max(x1, c[2][0]); y1 = Math.max(y1, c[2][1]); });
+    return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  }
   function drawSel() {
     const ms = mItems();
     if (ms.length || mq) {
@@ -5427,6 +5435,11 @@ If you want to offset all timestamps of a track such that the first one is zero,
         const [x0, y0] = scr(Math.min(mq.x0, mq.x1), Math.min(mq.y0, mq.y1), m), [x1, y1] = scr(Math.max(mq.x0, mq.x1), Math.max(mq.y0, mq.y1), m);
         dctx.fillStyle = 'rgba(74,163,255,.12)'; dctx.fillRect(x0 * k, y0 * k, (x1 - x0) * k, (y1 - y0) * k);
         dctx.strokeRect(x0 * k, y0 * k, (x1 - x0) * k, (y1 - y0) * k);
+      }
+      const bx = !mq && mBox(ms);
+      if (bx) {
+        dctx.setLineDash([5 * k, 3 * k]); dctx.strokeRect(bx[0][0] * k, bx[0][1] * k, (bx[2][0] - bx[0][0]) * k, (bx[2][1] - bx[0][1]) * k); dctx.setLineDash([]);
+        dctx.fillStyle = '#fff'; bx.forEach(([x, y]) => { dctx.fillRect((x - 4) * k, (y - 4) * k, 8 * k, 8 * k); dctx.strokeRect((x - 4) * k, (y - 4) * k, 8 * k, 8 * k); });
       }
       dctx.restore(); if (ms.length) return;
     }
@@ -5458,6 +5471,15 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const [px, py] = vpPt(e), [x, y] = toNorm(e);
     const hit0 = picAt(x, y), ms = mItems();
     if (e.shiftKey && hit0) { e.preventDefault(); e.stopPropagation(); toggleMulti(hit0); return; }   // Shift+クリックで追加・外す
+    { const bx = mBox(ms), hi = bx ? bx.findIndex(([qx, qy]) => Math.abs(px - qx) <= 8 && Math.abs(py - qy) <= 8) : -1;
+      if (hi >= 0) {   // 外枠の角：まとめて拡大縮小（反対側の角を固定）
+        e.preventDefault(); e.stopPropagation(); pauseExact();
+        try { vp.setPointerCapture(e.pointerId); } catch {}
+        const m = M(), toN = ([sx, sy]) => [(sx - m.ox) / m.sw, (sy - m.oy) / m.sh];
+        const [ax, ay] = toN(bx[(hi + 2) % 4]), [cx, cy] = toN(bx[hi]);
+        xf = { id: e.pointerId, mode: 'mscale', ax, ay, cx, cy, list: ms.map(o => ({ ...o, a: { x: o.st.x, y: o.st.y, w: o.st.w, h: o.st.h, s: o.st.s } })) };
+        return;
+      } }
     if (ms.length && hit0 && ms.some(o => o.st === hit0)) {   // 選んだ物をまとめて動かす
       e.preventDefault(); e.stopPropagation(); pauseExact();
       try { vp.setPointerCapture(e.pointerId); } catch {}
@@ -5497,6 +5519,12 @@ If you want to offset all timestamps of a track such that the first one is zero,
     }
     if (e.pointerId !== xf.id) return;
     if (xf.mode === 'marq') { const [x, y] = toNorm(e); mq.x1 = x; mq.y1 = y; paintDrawing(false); return; }
+    if (xf.mode === 'mscale') {
+      const [x, y] = toNorm(e), m = M(), W = Math.abs(m.sw), H = Math.abs(m.sh);
+      const vx = (xf.cx - xf.ax) * W, vy = (xf.cy - xf.ay) * H, k = Math.max(0.02, ((x - xf.ax) * W * vx + (y - xf.ay) * H * vy) / (vx * vx + vy * vy || 1));
+      xf.list.forEach(o => { const a = o.a, st = o.st; st.x = xf.ax + (a.x - xf.ax) * k; st.y = xf.ay + (a.y - xf.ay) * k; st.w = a.w * k; if (a.h != null) st.h = a.h * k; if (st.t === 'x' && a.s) st.s = a.s * k; });
+      say(`まとめて ${Math.round(k * 100)}%`); requestRebuild(); renderBoard(); return;
+    }
     if (xf.mode === 'mmove') { const [x, y] = toNorm(e); xf.list.forEach(o => { o.st.x = o.a.x + x - xf.x; o.st.y = o.a.y + y - xf.y; }); requestRebuild(); return; }
     const [x, y] = toNorm(e), st = xf.st, a = xf.a;
     if (xf.mode === 'move') { st.x = a.x + x - xf.x; st.y = a.y + y - xf.y; }
@@ -5517,6 +5545,12 @@ If you want to offset all timestamps of a track such that the first one is zero,
       const list = add.slice(); got.forEach(o => { if (!list.some(q => q.st === o.st)) list.push(o); });
       if (list.length) setMulti(list); else { sel = null; msel = []; paintDrawing(false); }
       return;
+    }
+    if (xf.mode === 'mscale') {
+      const ops = xf.list.filter(o => o.st.w !== o.a.w).map(o => { const b = { x: o.st.x, y: o.st.y, w: o.st.w, h: o.st.h }; if (o.st.t === 'x') b.s = o.st.s; return { vid: S.cur, f: o.st.b ? frame() : o.f, op: 'xf', st: o.st, a: { ...o.a }, b }; });
+      xf = null;
+      if (ops.length) { undoStack.push({ op: 'grp', ops }); redoStack.length = 0; fbChanged(); renderBoard(); renderVideos(); save(); say(`${ops.length}個の大きさを変えました（Ctrl+Z で戻せます）`); }
+      paintDrawing(true); return;
     }
     if (xf.mode === 'mmove') {
       const ops = xf.list.filter(o => o.st.x !== o.a.x || o.st.y !== o.a.y).map(o => ({ vid: S.cur, f: o.st.b ? frame() : o.f, op: 'xf', st: o.st, a: { ...o.a }, b: { x: o.st.x, y: o.st.y } }));
@@ -5542,6 +5576,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const one = n === 1 ? (mItems()[0]?.st || selSt()) : null;
     if (one?.t === 'l') items.push(['🔗 リンクを開く', () => openLink(one.url)], ['📋 リンクをコピー', async () => { try { await navigator.clipboard.writeText(one.url); say('リンクをコピーしました'); } catch { say('コピーできませんでした'); } }], ['✎ 名前を付ける・URLを直す…', () => linkDlg(one)], ['-']);
     if (one?.t === 'i') items.push(['✂ 画像を切り取る（トリミング）…', () => cropDlg(one)], ['-']);
+    if (n) items.push([`⤢ 大きさをまとめて変える…（${n}個）`, () => sizeDlg()]);
     if (n) {
       items.push([`選んだ${n > 1 ? n + '個' : '物'}を1枚の画像で保存（Ctrl+Shift+E）`, () => ACT.exportSel()]);
       items.push([`選んだ${n > 1 ? n + '個' : '物'}を削除（Delete）`, () => deletePic()]);
@@ -7739,6 +7774,42 @@ If you want to offset all timestamps of a track such that the first one is zero,
       }
       redoStack.length = 0; paintDrawing(true); save();
       say(`切り取りました（${sw}×${sh}px）。Ctrl+Z で戻せます`);
+    };
+    await q;
+  }
+  // ⤢ 選んだ物の大きさをまとめて変える：倍率／幅をそろえる／高さをそろえる（縦横比はそのまま）
+  async function sizeDlg() {
+    const list = mItems().length ? mItems() : (selSt() ? [{ st: selSt(), f: sel.f }] : []);
+    if (!list.length) { say('先に画像を選んでください（ドラッグで囲む・Shift+クリックで追加）'); return; }
+    const VW = video.videoWidth || 1000, VH = video.videoHeight || 1000, hOf = (s) => s.b ? bH(s) : s.h;
+    const w0 = Math.round(list[0].st.w * VW), h0 = Math.round(hOf(list[0].st) * VH);
+    const q = ask('', `大きさをまとめて変える（${list.length}個）`, false, true), mt = $('#modalText');
+    mt.innerHTML = `<div style="display:grid;grid-template-columns:auto auto auto;gap:8px 10px;align-items:center">
+      <label><input type="radio" name="szm" value="p" checked> 倍率</label><input id="szP" type="number" value="100" min="1" max="2000" step="1" style="width:80px;height:26px"><span>%（それぞれの中心から）</span>
+      <label><input type="radio" name="szm" value="w"> 幅をそろえる</label><input id="szW" type="number" value="${w0}" min="1" step="1" style="width:80px;height:26px"><span>px（動画の大きさ基準）</span>
+      <label><input type="radio" name="szm" value="h"> 高さをそろえる</label><input id="szH" type="number" value="${h0}" min="1" step="1" style="width:80px;height:26px"><span>px</span></div>
+      <p class="hint" style="margin:8px 0 0">縦横比はそのまま。幅・高さの初期値は1つ目の大きさ</p>
+      <div style="margin-top:10px"><button id="szOk" style="background:var(--hl);color:#fff;padding:0 16px;height:28px">変える</button></div>`;
+    ['szP', 'szW', 'szH'].forEach((id, i) => { const el = $('#' + id); el.onfocus = () => { mt.querySelectorAll('[name=szm]')[i].checked = true; }; el.onkeydown = (k) => { k.stopPropagation(); if (k.key === 'Enter') $('#szOk').click(); }; });
+    setTimeout(() => $('#szP').select(), 30);
+    $('#szOk').onclick = () => {
+      const md = mt.querySelector('[name=szm]:checked').value, ops = [];
+      for (const o of list) {
+        const st = o.st, hh = hOf(st), a = { x: st.x, y: st.y, w: st.w, h: st.h, s: st.s };
+        let k = 1;
+        if (md === 'p') k = Math.max(1, +$('#szP').value || 100) / 100;
+        else if (md === 'w') k = Math.max(1, +$('#szW').value || 1) / VW / st.w;
+        else k = Math.max(1, +$('#szH').value || 1) / VH / hh;
+        if (!isFinite(k) || Math.abs(k - 1) < 1e-6) continue;
+        if (md === 'p') { st.x += st.w * (1 - k) / 2; st.y += hh * (1 - k) / 2; }   // 倍率は中心から。そろえるときは左上を固定
+        st.w *= k; if (st.h != null) st.h *= k; if (st.t === 'x' && st.s) st.s *= k;
+        const b = { x: st.x, y: st.y, w: st.w, h: st.h }; if (st.t === 'x') b.s = st.s;
+        ops.push({ vid: S.cur, f: st.b ? frame() : o.f, op: 'xf', st, a, b });
+      }
+      $('#mYes').click();
+      if (!ops.length) { say('大きさは変わりませんでした'); return; }
+      undoStack.push({ op: 'grp', ops }); redoStack.length = 0; fbChanged(); renderBoard(); renderVideos(); paintDrawing(true); save();
+      say(`${ops.length}個の大きさを変えました（Ctrl+Z で戻せます）`);
     };
     await q;
   }
