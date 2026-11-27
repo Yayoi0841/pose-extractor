@@ -666,6 +666,8 @@
       <button id="undo" title="元に戻す Ctrl+Z">↶</button>
       <button id="redo" title="やり直し Ctrl+Shift+Z / Ctrl+Y">↷</button>
       <button id="clearFrame" title="このフレームの描画を消去">このフレームを消去</button>
+      <span class="sep"></span>
+      <button class="tg" id="tgPenAll" title="オン（青）のあいだは、描いた線が全フレームに出ます（どのコマに移っても見える）。消しゴムも全フレームの線だけに効きます  Shift+A">全フレームに描く</button>
     </div>
   </div>
 
@@ -951,6 +953,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
 <ul>
 <li><kbd>B</kbd> ペン／<kbd>E</kbd> 消しゴム／<kbd>V</kbd> 選択</li>
 <li><kbd>[</kbd><kbd>]</kbd> 太さ／<kbd>Shift</kbd>＋クリックで直線</li>
+<li><b>全フレームに描く</b>：ペンのバーの「全フレームに描く」（<kbd>Shift</kbd>+<kbd>A</kbd>）をオン（青）にして描くと、その線はどのコマでも見えます。ガイド線・目印に。消しゴムもオンのときは全フレームの線だけに効き、「全フレームの線を消去」でまとめて消せます</li>
 <li><b>数字で指定</b>：スライダー横の数字（6px・100% など）をクリック → 打って <kbd>Enter</kbd>。太さは 0.5〜300px を 0.1 刻み</li>
 <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> 戻す</li>
 <li><kbd>M</kbd> メモを書く</li>
@@ -1048,6 +1051,7 @@ Shift+[ ＝ 今のフレームから　Shift+] ＝ 今のフレームまで　Sh
     <tr class="h"><td colspan="2">ペン（Photoshop）</td></tr>
     <tr><td><kbd>B</kbd> / <kbd>E</kbd> / <kbd>V</kbd></td><td>ペン／消しゴム／選択（描かない）</td></tr>
     <tr><td><kbd>H</kbd></td><td>ペン（線・貼った画像）を隠す／表示（消えません）</td></tr>
+    <tr><td><kbd>Shift</kbd>+<kbd>A</kbd></td><td>全フレームに描く（オンのあいだ、線がどのコマにも出る）</td></tr>
     <tr><td><kbd>Shift</kbd>+<kbd>M</kbd></td><td>画面上のメモを隠す／表示（消えません）</td></tr>
     <tr><td><kbd>I</kbd> / <kbd>Shift</kbd>+<kbd>I</kbd></td><td>追従のオン／オフ（拡大中もキャラを中央に追いかける）／追いかける対象を選び直す</td></tr>
     <tr><td><kbd>A</kbd> / <kbd>R</kbd></td><td>軌道ツール／角度ツール</td></tr>
@@ -4909,6 +4913,9 @@ If you want to offset all timestamps of a track such that the first one is zero,
   const layerById = (id) => S.layers.find(l => l.id === id);
   const activeLayer = () => layerById(S.layer) || S.layers[S.layers.length - 1];
   const strokesOf = (n, id) => (n?.strokes || []).filter(st => st.l === id);
+  let penAll = false;   // オンのあいだ、ペン・消しゴムは「全フレームの線」（フレーム0）に入る
+  // そのコマに見えるFB＝全フレームの線（フレーム0の文字以外）＋そのコマのFB。全フレームの線は下に描く
+  const fbView = (vid, f) => { const g = note(vid, 0), n = f ? note(vid, f) : null, gs = (g?.strokes || []).filter(s => s.t !== 'x'); if (!gs.length) return n; return { ...(n || { memo: '', strokes: [] }), strokes: [...gs, ...(n?.strokes || [])] }; };
 
   // ---- 線を描く ----
   function strokePath(ctx, st, m) {
@@ -4980,7 +4987,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     ctx.restore();
   }
   function paintDrawing(rebuild) {
-    const m = M(), n = has() ? note(S.cur, frame()) : null, act = activeLayer();
+    const m = M(), n = has() ? fbView(S.cur, frame()) : null, act = activeLayer();
     if (rebuild) {
       [bctx, actx, abctx].forEach(c => c.clearRect(0, 0, draw.width, draw.height));
       const pn = has() ? prevNote(S.cur, frame()) : null;
@@ -5067,7 +5074,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     for (const it of boardOf()) {
       if (it.t !== 'v' || it.hide) continue;
       const sf = subFr(it); if (!sf) continue;
-      const n2 = note(it.v, sf), lv2 = live?.sub === it;
+      const n2 = fbView(it.v, sf), lv2 = live?.sub === it;
       if (!n2?.strokes.length && !lv2) continue;
       const ms = subM(it, m), act = activeLayer();
       dctx.save(); dctx.beginPath(); dctx.rect(ms.ox * dpr, ms.oy * dpr, ms.sw * dpr, ms.sh * dpr); dctx.clip();
@@ -5096,7 +5103,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
         try { draw.setPointerCapture(e.pointerId); } catch {}
         penFlip = e.pointerType === 'pen' && S.tool === 'pen' && ((e.buttons & 32) || e.button === 5);
         const [x, y] = toSub(sub, x0, y0), p = pressureOf(e);
-        live = newStroke(); live.s /= sub.w; live.sub = sub; live.sf = sf; live.pts.push(x, y, p); sm = { x, y, p };
+        live = newStroke(); live.s /= sub.w; live.sub = sub; live.sf = penAll ? 0 : sf; live.pts.push(x, y, p); sm = { x, y, p };
         requestPaint(); return;
       }
     }
@@ -5146,7 +5153,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       note(it.v, sf, true).strokes.push(st);
       undoStack.push({ vid: it.v, f: sf, op: 'add', st }); redoStack.length = 0;
       fbChanged(); paintDrawing(true);
-      const nm = S.videos.find(v => v.id === it.v)?.name || 'サブ動画'; say(`サブ動画「${nm}」の ${sf} コマ目に描きました（その動画を開いてもFBとして見られます）`);
+      const nm = S.videos.find(v => v.id === it.v)?.name || 'サブ動画'; say(sf ? `サブ動画「${nm}」の ${sf} コマ目に描きました（その動画を開いてもFBとして見られます）` : `サブ動画「${nm}」の全フレームに描きました`);
       return;
     }
     lastPt = { key: `${S.cur}:${frame()}`, x: L[L.length - 3], y: L[L.length - 2] };
@@ -5613,7 +5620,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     fbChanged(); paintDrawing(true); say(`${st.t === 'x' ? '文字' : '画像'}を削除しました（Ctrl+Zで戻せます）`);
   }
   function commitStroke(st) {
-    const f = frame(), n = note(S.cur, f, true);
+    const f = penAll ? 0 : frame(), n = note(S.cur, f, true);
     n.strokes.push(st);
     undoStack.push({ vid: S.cur, f, op: 'add', st }); redoStack.length = 0;
     fbChanged(); paintDrawing(true);
@@ -5648,6 +5655,12 @@ If you want to offset all timestamps of a track such that the first one is zero,
   function redo() { const o = redoStack.pop(); if (!o) { say('やり直す操作がありません'); return; } applyOp(o, false); undoStack.push(o); say('やり直しました'); }
   function clearFrame() {
     if (!has()) return;
+    if (penAll) {   // 全フレームの線（文字は残す）
+      const g = note(S.cur, 0), a = g?.strokes.slice() || [], b = a.filter(s => s.t === 'x');
+      if (a.length === b.length) { say('全フレームの線はありません'); return; }
+      g.strokes = b.slice(); undoStack.push({ vid: S.cur, f: 0, op: 'arr', a, b }); redoStack.length = 0;
+      tidyNote(S.cur, 0); fbChanged(); paintDrawing(true); say('全フレームの線を消去しました（Ctrl+Zで戻せます）'); return;
+    }
     const f = frame(), n = note(S.cur, f);
     if (!n?.strokes.length) { say('このフレームには描画がありません'); return; }
     undoStack.push({ vid: S.cur, f, op: 'clear', strokes: n.strokes.slice() }); redoStack.length = 0;
@@ -5655,6 +5668,13 @@ If you want to offset all timestamps of a track such that the first one is zero,
     say(`フレーム ${f} の描画を消去しました（Ctrl+Zで戻せます）`);
   }
   $('#undo').onclick = undo; $('#redo').onclick = redo; $('#clearFrame').onclick = clearFrame;
+  function togglePenAll(v = !penAll) {
+    penAll = v; $('#tgPenAll').classList.toggle('on', v); document.body.classList.toggle('penAll', v);
+    $('#clearFrame').textContent = v ? '全フレームの線を消去' : 'このフレームを消去';
+    $('#clearFrame').title = v ? '全フレームに出している線を消去（文字は残ります）' : 'このフレームの描画を消去';
+    say(v ? '全フレームに描くモード：描いた線はどのコマでも見えます（もう一度押すと、そのコマだけに戻ります）' : 'そのコマだけに描くモードに戻しました');
+  }
+  $('#tgPenAll').onclick = () => togglePenAll();
 
   // ---- ツールとブラシ設定 ----
   function setTool(t) {
@@ -6476,7 +6496,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
   async function exportFrame() {
     if (!has() || !video.videoWidth) { say('先に動画を追加してください'); return; }
     video.pause(); stopStep();
-    const W = video.videoWidth, H = video.videoHeight, n = frame(), nt = note(S.cur, n);
+    const W = video.videoWidth, H = video.videoHeight, n = frame(), nt = fbView(S.cur, n);
     await picsReady(nt?.strokes);
     const base = document.createElement('canvas'); base.width = W; base.height = H;
     const bx = base.getContext('2d');
@@ -6659,7 +6679,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
       for (let i = 0; i < jobs.length; i++) {
         if (cancel) break;
         const j = jobs[i]; pg.textContent = `${i + 1} / ${jobs.length}　${j.v.name} F${j.f}`;
-        await picsReady(j.n.strokes);
+        await picsReady(j.n.strokes); j.n = fbView(j.v.id, j.f) || j.n;
         let W = 1280, H = 720, c = document.createElement('canvas');
         if (j.v.url) {
           if (curUrl !== j.v.url) { curUrl = j.v.url; el.src = j.v.url; await waitEv(el, 'loadedmetadata', 8000); }
@@ -6886,6 +6906,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     else if (k === 'b') setTool('pen');
     else if (k === 'e') setTool('eraser');
     else if (k === 'v') setTool('select');
+    else if (e.shiftKey && !e.altKey && !ctrl && code === 'KeyA') togglePenAll();
     else if (k === 'a' && !e.altKey) setTool('arc');
     else if (k === 'r' && !e.altKey) setTool('angle');
     else if (e.shiftKey && !e.altKey && code === 'KeyI') pickTarget();
@@ -7337,6 +7358,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
     const outCount = (f1 - f0 + 1) + (hold > 0 ? fbs.filter(f => f >= f0 && f <= f1).length * Math.round(hold * F) : 0);
     if (outCount / F > 600 && !(await ask(`書き出す長さが約${Math.round(outCount / F / 60)}分あります。時間とメモリを多く使いますが続けますか？`, 'MP4 で書き出す'))) return;
     for (const f of fbs) await picsReady(note(S.cur, f).strokes);
+    await picsReady(note(S.cur, 0)?.strokes);
 
     // ---- 書き出し用の動画（画面の表示とは別に読み込む） ----
     const hideBox = document.createElement('div');
@@ -7399,7 +7421,7 @@ If you want to offset all timestamps of a track such that the first one is zero,
           else { const s = subSrc.get(it.id); if (s) bg.drawImage(s, x, y, w, h); else { bg.fillStyle = '#000'; bg.fillRect(x, y, w, h); } }
         } catch {}
       });
-      const g = fbFor(f), nt = g != null ? note(S.cur, g) : null;
+      const g = fbFor(f), nt = fbView(S.cur, g ?? 0);   // 全フレームの線は毎コマ
       if (oPen && nt?.strokes.length) {
         bg.save(); bg.beginPath(); bg.rect(offX, offY, vw, vh); bg.clip();   // 動画の外には描かない（画面と同じ）
         S.layers.forEach(L => {
